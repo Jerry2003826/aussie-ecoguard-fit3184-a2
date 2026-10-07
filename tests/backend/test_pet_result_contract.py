@@ -17,7 +17,7 @@ from ecoguard_aws.service import Service
 from ecoguard_aws.storage import MemoryStorage
 
 
-def job_payload(mode, *, scored=True, private=False):
+def job_payload(mode, *, scored=True, private=False, manifest=None):
     config = Config(mode="local")
     repo = MemoryRepository()
     service = Service(config, repo, MemoryStorage(config))
@@ -32,6 +32,8 @@ def job_payload(mode, *, scored=True, private=False):
           "description": "A ginger cat" if mode in ("text", "combined") else ""}
     if mode in ("image", "combined"):
         op.update(filename="query-photo.jpg", fileType="image")
+    if manifest:
+        op["manifestVersion"] = manifest
     return service.job_view(op, Principal("searcher"))
 
 
@@ -50,6 +52,12 @@ class PetResultContractTests(unittest.TestCase):
 
     def test_combined_reason_describes_both_inputs_and_equal_weight(self):
         self.assert_mode("combined", "Image and description similarity, weighted equally for the same detected pet. Possible sighting, not confirmed identity.")
+
+    def test_v3_combined_reason_describes_both_gates(self):
+        item = job_payload("combined", manifest="ecoguard-models-2026-10-08-v3")["items"][0]
+        self.assertIn("both must match the same detected pet", item["matchReason"])
+        self.assertNotIn("weighted equally", item["matchReason"])
+        self.assertIn("not confirmed identity", item["matchReason"])
 
     def test_unscored_results_do_not_gain_match_claims(self):
         item = job_payload("image", scored=False)["items"][0]

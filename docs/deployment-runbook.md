@@ -10,6 +10,15 @@ to be located and verified. GCP is limited to the existing free IAM/WIF setup.
 Planning and local Toolkit access do not authorize starting the student Lab or
 Oracle resources. Check actual account, region, scope and budget before deployment.
 
+## Current paused deployment
+
+The existing course resources are retained with runtime/API/S3 data access paused.
+`infra/aws/deployment.auto.tfvars` persists `runtime_enabled=false` and the v3 model
+manifest. Do not change `deploy_api` or delete resources to suspend execution.
+See [shutdown/restore](../infra/aws/SHUTDOWN.md) and the [latest core record](core-completion-20261008.md).
+Resuming or adding deployment resources requires new task-specific authorization
+and verified course/credit coverage; retaining data does not guarantee zero storage cost.
+
 ## Local
 
 ```powershell

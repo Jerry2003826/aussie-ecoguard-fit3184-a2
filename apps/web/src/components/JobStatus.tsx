@@ -33,8 +33,12 @@ export function JobStatus({
     if (result.data) onUpdate?.(result.data);
   }, [result.data, onUpdate]);
   useEffect(() => {
-    if (result.error instanceof ApiError && result.error.status === 404) onUnavailable?.();
-  }, [result.error, onUnavailable]);
+    if (
+      result.error instanceof ApiError &&
+      (result.error.status === 404 || (query && result.error.status === 410))
+    )
+      onUnavailable?.();
+  }, [result.error, query, onUnavailable]);
   return (
     <div className="job-status" aria-live="polite">
       {result.isPending ? (

@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1",
+  "manifestVersion": "ecoguard-models-2026-10-07-v2",
+  "status": "locked",
+  "entryModel": "aws-rekognition",
+  "preprocessingVersion": "rgb-exif-crop-text64-v2",
+  "taxonomyVersion": "taxonomy-2026-10-07-v1",
+  "fallbackManifestVersion": null,
+  "detector": {
+    "adapter": "grounding-dino",
+    "modelId": "IDEA-Research/grounding-dino-tiny",
+    "revision": "a2bb814dd30d776dcf7e30523b00659f4f141c71",
+    "license": "Apache-2.0",
+    "modelCard": "https://huggingface.co/IDEA-Research/grounding-dino-tiny",
+    "files": [
+      {
+        "name": "added_tokens.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/added_tokens.json",
+        "sha256": "909e96cb32d92ce728a01bc99850cbba26196d74115c17ebeb019275412588f2",
+        "bytes": 82
+      },
+      {
+        "name": "config.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/config.json",
+        "sha256": "eec82c5ab66e16df12a9a212e68ac011779927c2536cf9078658e35d85f0c67a",
+        "bytes": 1644
+      },
+      {
+        "name": "model.safetensors",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/model.safetensors",
+        "sha256": "1a2412ef99bd74bcd3c2a246fa1e48581f8889a1300c9051974741314fc042f3",
+        "bytes": 689359096
+      },
+      {
+        "name": "preprocessor_config.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/preprocessor_config.json",
+        "sha256": "8454179ba95e2ad22947835aad7b45862a601fc0055ab88bf1ee70892d3aea60",
+        "bytes": 457
+      },
+      {
+        "name": "special_tokens_map.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/special_tokens_map.json",
+        "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        "bytes": 125
+      },
+      {
+        "name": "tokenizer.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/tokenizer.json",
+        "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "bytes": 711396
+      },
+      {
+        "name": "tokenizer_config.json",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/tokenizer_config.json",
+        "sha256": "d40ab645b68211910b9170d22433d43186a6ec8ee6fd10ba170524b25bf4fb56",
+        "bytes": 1237
+      },
+      {
+        "name": "vocab.txt",
+        "uri": "https://huggingface.co/IDEA-Research/grounding-dino-tiny/resolve/a2bb814dd30d776dcf7e30523b00659f4f141c71/vocab.txt",
+        "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3",
+        "bytes": 231508
+      }
+    ],
+    "boxThreshold": 0.35,
+    "textThreshold": 0.3,
+    "nmsIou": 0.5,
+    "promptStrategy": "per_species",
+    "imageSize": {
+      "shortest_edge": 640,
+      "longest_edge": 1024
+    }
+  },
+  "embedding": {
+    "adapter": "siglip2",
+    "modelId": "google/siglip2-base-patch16-256",
+    "revision": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+    "license": "Apache-2.0",
+    "modelCard": "https://huggingface.co/google/siglip2-base-patch16-256",
+    "featureVersion": "siglip2-base-256-rgb-crop-v1",
+    "files": [
+      {
+        "name": "config.json",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/config.json",
+        "sha256": "7b5aedcb8893e31376e129c1ffd7a5392f1a806dbc793ce53eda220c2ec59edf",
+        "bytes": 276
+      },
+      {
+        "name": "model.safetensors",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/model.safetensors",
+        "sha256": "6125cacc01fa93bdc98a0c5101cefcd69b2ed1f8ab4f38d86f4ad5984f5dc863",
+        "bytes": 1500985224
+      },
+      {
+        "name": "preprocessor_config.json",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/preprocessor_config.json",
+        "sha256": "d14ba2ee3fd816f3de8abaddc31953565128eaf37c73ad4bed32101a98465aff",
+        "bytes": 394
+      },
+      {
+        "name": "special_tokens_map.json",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/special_tokens_map.json",
+        "sha256": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351",
+        "bytes": 636
+      },
+      {
+        "name": "tokenizer.json",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/tokenizer.json",
+        "sha256": "cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322",
+        "bytes": 34363039
+      },
+      {
+        "name": "tokenizer.model",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/tokenizer.model",
+        "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2",
+        "bytes": 4241003
+      },
+      {
+        "name": "tokenizer_config.json",
+        "uri": "https://huggingface.co/google/siglip2-base-patch16-256/resolve/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab/tokenizer_config.json",
+        "sha256": "14afe629fe4959b9e0d51e1852b8d9f7ad074f90a1a7125a4fcdd17f06e78fc8",
+        "bytes": 47164
+      }
+    ]
+  },
+  "notes": "Official artifact metadata pinned; weights not downloaded; model accuracy and capacity remain unverified.",
+  "taxonomySha256": "d187e81d58d0db3498832e4c33ae61551b56d7afedf4e303824f8cc6e3b6c883"
+}

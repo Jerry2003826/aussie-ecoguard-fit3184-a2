@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import re
 import time
 from pathlib import Path, PurePosixPath
@@ -10,6 +11,38 @@ import httpx
 from .errors import ServiceError
 from .media import remaining
 from .settings import Settings
+
+
+def validate_retrieval_calibration(value: dict) -> None:
+    """A v3 policy is immutable, feature-specific and semantic, not identity confidence."""
+    policy = value.get("retrievalCalibration")
+    if policy is None:
+        if value["detector"].get("promptStrategy") == "object_then_siglip":
+            raise ValueError("Crop features require their frozen retrieval calibration")
+        return  # Archived v2 keeps its legacy scoring contract.
+    embedding = value["embedding"]
+    expected = f"{embedding['featureVersion']}:{embedding['revision']}:{value['preprocessingVersion']}"
+    if (policy["policyVersion"] != "siglip2-semantic-platt-v1"
+            or policy["featureVersion"] != expected or policy["semanticOnly"] is not True
+            or policy["combination"] != "and_geometric_mean"):
+        raise ValueError("Invalid retrieval policy identity")
+    for mode in ("image", "text"):
+        row = policy[mode]
+        if (not all(type(row[key]) in (int, float) and math.isfinite(row[key]) for key in ("scale", "bias", "minimumScore"))
+                or row["scale"] <= 0 or row["minimumScore"] != 0.5):
+            raise ValueError("Invalid monotonic retrieval calibration")
+    fit = policy["fit"]
+    if (fit["method"] != "standardized L2-regularized monotonic Platt"
+            or fit["regularization"] != 0.01
+            or fit["thresholdRule"] != "fixed 0.5 before holdout"
+            or not re.fullmatch("[a-f0-9]{64}", fit["dataSha256"])
+            or fit["sourceCounts"]["holdoutUsed"] != 0):
+        raise ValueError("Missing independent calibration provenance")
+    for mode in ("image", "text"):
+        stats = fit[mode]
+        if (not all(type(stats[key]) is int and stats[key] > 0 for key in ("pairs", "positivePairs", "negativePairs"))
+                or stats["pairs"] != stats["positivePairs"] + stats["negativePairs"]):
+            raise ValueError("Invalid calibration pair counts")
 
 
 def sha256_file(path: Path) -> str:
@@ -61,11 +94,25 @@ def load_manifest(settings: Settings) -> dict:
             raise ValueError("Invalid confidence threshold")
         if not 0 < value["detector"]["nmsIou"] <= 1:
             raise ValueError("Invalid suppression threshold")
-        if value["detector"].get("promptStrategy", "per_species") != "per_species":
+        strategy = value["detector"].get("promptStrategy", "per_species")
+        if strategy not in ("per_species", "object_then_siglip"):
             raise ValueError("Unsupported prompt strategy")
+        if strategy == "object_then_siglip":
+            classifier = value["detector"]["classifier"]
+            if (not 1 <= len(value["detector"]["proposalPrompts"]) <= 12
+                    or not all(isinstance(prompt, str) and 0 < len(prompt) <= 80 for prompt in value["detector"]["proposalPrompts"])
+                    or classifier["template"] != "this is a photo of a {label}."
+                    or not 0.5 <= classifier["minimumClassProbability"] <= 1
+                    or not classifier["rejectLabels"]
+                    or not all(isinstance(label, str) and 0 < len(label) <= 80 for label in classifier["rejectLabels"])
+                    or value["embedding"].get("textPreprocessing") != "lowercase"):
+                raise ValueError("Invalid crop classifier policy")
+        if value["embedding"].get("textPreprocessing", "legacy") not in ("legacy", "lowercase"):
+            raise ValueError("Invalid text preprocessing")
         size = value["detector"].get("imageSize", {"shortest_edge": 640, "longest_edge": 1024})
         if not 256 <= size["shortest_edge"] <= 800 or not size["shortest_edge"] <= size["longest_edge"] <= 1333:
             raise ValueError("Invalid detector resize")
+        validate_retrieval_calibration(value)
         return value
     except (OSError, ValueError, KeyError, TypeError):
         raise ServiceError("MODEL_NOT_CONFIGURED", "An immutable, SHA-256 verified model manifest is required.", 503) from None

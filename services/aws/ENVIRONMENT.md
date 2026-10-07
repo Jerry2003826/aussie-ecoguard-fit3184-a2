@@ -46,7 +46,7 @@ reject `ECO_MODE=local`. The Python import roots for local development are
 | `ECO_LEX_LOCALE` | `en_US` unless the deployed bot uses another locale |
 | `ECO_RESOURCE_PREFIX` | SNS user-topic name prefix, default `ecoguard` |
 | `ECO_FFMPEG` / `ECO_FFPROBE` | Executables; image installs them on PATH |
-| `ECO_PET_SCORE_THRESHOLD` | Initial 0.2; freeze only after real benchmark evaluation |
+| `ECO_PET_SCORE_THRESHOLD` | Outer candidate filter, 0.2; v3 also requires each calibrated modality to pass its frozen 0.5 gate |
 
 AWS credentials must come from the Lambda execution role. Do not set credentials in
 the image, Terraform variables, or Lambda environment. GCP WIF must allow the exact
@@ -70,9 +70,30 @@ This first implementation scans owner gallery/maintenance/subscriptions and uses
 species partitions for search. It targets the assignment workload, not an unbounded media
 catalog. Provision indexes and bounded maintenance batches before scaling materially.
 
-Upload URLs: 900 seconds, signed SHA-256 and content length. End-user reads: 60 seconds.
+Browser upload URLs: 600 seconds, signed SHA-256 and content length. Query jobs keep
+one 900-second lifetime from creation; upload renewal and retries never extend it.
+Renewal detects already-completed uploads and returns `alreadyUploaded=true` without
+a new URL. End-user reads: 60 seconds.
 Worker frame reads: 900 seconds, created immediately before inference. Temporary-role
 credential expiry can shorten all presigned URLs. Never place signed URLs into queue state.
+
+The HTTP client permits the initial attempt plus two short transient retries for
+408/429/5xx and transport failures, sharing the original deadline with WIF/IAM.
+Connect/read timeouts are inactivity budgets, not a hard wall-clock process kill.
+The inference subprocess enforces its own absolute deadline. Retryable query
+failures retain inputs only until the original deadline; owners can retry the same
+job. Permanent failure, cancellation, expiry and success reclaim temporary input.
+
+The v3 `pet-calibration.json` must equal the locked manifest's retrieval policy.
+Image and text have separate monotonic calibrations; combined input requires both
+to pass for the same pet crop, then uses their geometric mean. These are semantic
+candidate scores, not identity probabilities. Old tasks retain their original
+manifest and scoring; never mix v2 and v3 feature vectors.
+
+The existing cloud runtime is currently paused through `runtime_enabled=false`
+in `infra/aws/deployment.auto.tfvars`. See [retained-data pause](../../infra/aws/SHUTDOWN.md)
+before changing that switch. A new deployment/resume requires authorization and
+must respect the A$0 extra-payment constraint.
 
 Use S3 `ObjectCreated:*` notifications only on `incoming/`; accept duplicate events. All
 SQS handlers return `batchItemFailures`, which requires `ReportBatchItemFailures` in event

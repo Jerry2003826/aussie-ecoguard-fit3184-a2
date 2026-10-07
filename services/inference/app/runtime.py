@@ -20,12 +20,29 @@ def normalized_vector(values: list[float]) -> list[float]:
     return [float(value / norm) for value in values]
 
 
+def prepare_embedding_text(text: str, policy: str = "legacy") -> str:
+    """The pinned SigLIP2 Gemma tokenizer does not apply its training lowercase rule."""
+    return text.lower().strip() if policy == "lowercase" else text
+
+
+def winning_class(scores: list[float], scale: float, minimum: float) -> tuple[int, float] | None:
+    """Relative confidence within a fixed class bank, never individual identity probability."""
+    if (not scores or not all(math.isfinite(value) for value in scores)
+            or not math.isfinite(scale) or scale <= 0 or not 0.5 <= minimum <= 1):
+        raise ServiceError("INVALID_MODEL_OUTPUT", "The classifier returned invalid values.", 502)
+    winner = max(range(len(scores)), key=scores.__getitem__)
+    weights = [math.exp((score-scores[winner])*scale) for score in scores]
+    confidence = 1 / sum(weights)
+    return (winner, confidence) if confidence >= minimum else None
+
+
 class ModelRuntime:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.manifest = load_manifest(settings)
         self.taxonomy = Taxonomy(settings.taxonomy_path, self.manifest["taxonomyVersion"], self.manifest["taxonomySha256"])
         self.models: dict[str, tuple] = {}
+        self.classifier_text_features = None
         self.torch = None
 
     def status(self) -> dict:
@@ -63,6 +80,8 @@ class ModelRuntime:
         return self.models[name]
 
     def detect(self, image, deadline: float) -> list[dict]:
+        if self.manifest["detector"].get("promptStrategy") == "object_then_siglip":
+            return self.detect_classified_objects(image, deadline)
         processor, model = self.ensure_model("detector", deadline)
         config = self.manifest["detector"]
         detections = []
@@ -94,6 +113,62 @@ class ModelRuntime:
                                    "bbox": {"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}})
         return detections
 
+    def detect_classified_objects(self, image, deadline: float) -> list[dict]:
+        """DINO localizes animals; one shared SigLIP class bank resolves their species.
+
+        Independent DINO prompts are grounding scores, not comparable species
+        probabilities. A fox prompt must not overwrite a cat just by scoring higher.
+        """
+        config = self.manifest["detector"]
+        classifier = config["classifier"]
+        processor, model = self.ensure_model("detector", deadline)
+        candidates = []
+        for prompt in config["proposalPrompts"]:
+            remaining(deadline)
+            inputs = processor(images=image, text=prompt, return_tensors="pt", size=config["imageSize"])
+            with self.torch.inference_mode():
+                outputs = model(**inputs)
+            remaining(deadline)
+            result = processor.post_process_grounded_object_detection(
+                outputs, inputs.input_ids, threshold=config["boxThreshold"],
+                text_threshold=config["textThreshold"], target_sizes=[(image.height, image.width)])[0]
+            for score, box in zip(result["scores"], result["boxes"], strict=True):
+                x1, y1, x2, y2 = box.tolist()
+                x1, y1 = max(0, x1 / image.width), max(0, y1 / image.height)
+                x2, y2 = min(1, x2 / image.width), min(1, y2 / image.height)
+                if x2 > x1 and y2 > y1:
+                    candidates.append({"species": "animal", "confidence": float(score), "source": "grounding-dino",
+                                       "bbox": {"x": x1, "y": y1, "width": x2-x1, "height": y2-y1}})
+        candidates = merge_detections(candidates, self.taxonomy, config["nmsIou"])
+        if len(candidates) > self.settings.max_detections_per_frame:
+            raise ServiceError("TOO_MANY_DETECTIONS", "The frame exceeds the supported number of animal detections.", 422)
+        names = list(self.taxonomy.species) + [None] * len(classifier["rejectLabels"])
+        labels = [value["prompts"][0] for value in self.taxonomy.species.values()] + classifier["rejectLabels"]
+        embedding_processor, embedding_model = self.ensure_model("embedding", deadline)
+        if self.classifier_text_features is None:
+            texts = [prepare_embedding_text(classifier["template"].format(label=label), "lowercase") for label in labels]
+            tokens = embedding_processor(text=texts, padding="max_length", truncation=True, max_length=64, return_tensors="pt")
+            with self.torch.inference_mode():
+                values = embedding_model.get_text_features(**tokens)
+                self.classifier_text_features = values / values.norm(dim=-1, keepdim=True)
+        detections = []
+        for candidate in candidates:
+            remaining(deadline)
+            box = candidate["bbox"]
+            bounds = (int(box["x"]*image.width), int(box["y"]*image.height),
+                      min(image.width, math.ceil((box["x"]+box["width"])*image.width)),
+                      min(image.height, math.ceil((box["y"]+box["height"])*image.height)))
+            with image.crop(bounds) as crop:
+                vector = self.image_embedding(crop, deadline)
+            with self.torch.inference_mode():
+                scores = (self.classifier_text_features @ self.torch.tensor(vector)).tolist()
+                scale = float(embedding_model.logit_scale.exp())
+            decision = winning_class(scores, scale, classifier["minimumClassProbability"])
+            if decision is not None and names[decision[0]] is not None:
+                detections.append({"species": names[decision[0]], "confidence": min(candidate["confidence"], decision[1]),
+                                   "source": "grounding-dino+siglip2", "bbox": box})
+        return detections
+
     def entry_detections(self, labels: list) -> list[dict]:
         detections = []
         threshold = self.manifest.get("entryConfidenceThreshold", 0.7)
@@ -122,7 +197,8 @@ class ModelRuntime:
         self.check_version(request.manifestVersion)
         processor, model = self.ensure_model("embedding", deadline)
         max_length = model.config.text_config.max_position_embeddings
-        inputs = processor(text=[request.text], padding="max_length", truncation=True,
+        text = prepare_embedding_text(request.text, self.manifest["embedding"].get("textPreprocessing", "legacy"))
+        inputs = processor(text=[text], padding="max_length", truncation=True,
                            max_length=max_length, return_tensors="pt")
         with self.torch.inference_mode():
             output = model.get_text_features(**inputs)

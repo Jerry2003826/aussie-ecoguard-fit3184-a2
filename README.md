@@ -1,57 +1,37 @@
 # Aussie EcoGuard — FIT3184 A2
 
-澳大利亚动物目击管理、物种与数量检索、照片／文字寻宠、邮件订阅和 Lex
-助手。项目已按四人分工安排后续接管、实施与验收，你负责核心业务与 AI
-检索；[详细任务、交接与排期](docs/product-and-implementation-plan.md)。
+澳大利亚动物目击管理、物种与数量检索、照片／文字寻宠、邮件订阅和 Lex 助手。
+四人分工中 A 负责核心业务和 AI 检索；[四人任务与交接计划](docs/product-and-implementation-plan.md)。
 
-## 当前环境
+## 最新交付与运行状态
 
-AWS us-east-1 已实际创建 Cognito、私有 S3、5 张 DynamoDB 表、4 个 SQS
-工作队列及其 DLQ、ECR、7 个 Lambda 和受 JWT 保护的 HTTP API。
+**核心实现已完成本轮交接；云端运行和访问已暂停，数据与配置保留。**
+AWS 的定时任务、队列处理、七个 Lambda 和 API 已停用；媒体桶也拒绝包括旧签名链接在内的数据读写。
+`infra/aws/deployment.auto.tfvars` 持久保存 `runtime_enabled=false`，普通 plan 不会默默恢复运行。
+恢复服务需要新的授权，并继续遵守 **额外自费 A$0**。
 
-- API：`https://i4zicvj5s2.execute-api.us-east-1.amazonaws.com/api/v1`
-- Cognito pool：`us-east-1_9nR2hwyVJ`
-- Cognito client：`6io5inllom6a5l43038uhbluvi`
-- 文件桶：`ecoguard3184-dev-360493183467-media`
+[核心交付与停用记录](docs/core-completion-20261008.md)区分代码检查、真实本机模型和云验收。
+本轮唯一自动测试 **259 项全部通过**：后端 130、前端 39、推理与鉴权 72、Oracle 门禁 8、停用检查器 10。
+真实本机核心链路 **55/55**；120 秒视频按 0/10/…/110 秒取 12 帧，推理 **203.985 秒**，临时素材和模型进程均已清理。
+这些本机检查使用真实缓存模型、内存存储和明确的空 Rekognition fixture，不代表真实双云链路通过。
 
-最新结果见[10 月 8 日续验收记录](docs/acceptance-continuation-20261008.md)：
-唯一自动测试 **184 项**通过（本轮执行 176，保留未变更的 Oracle 门禁 8）；
-真实本机核心链路 52 项功能检查通过。新增 8 张独立 Oxford 图片的品种语义基线
-仍失败，不能将测试通过视作真实寻宠质量或全作业通过。
+模型 v3 的独立小样本验证：8 张未见图片的猫狗物种及特征 **8/8**；照片与照片加描述候选检索各 **7/8**；
+独立改写文字 **4/4**，无关文字 **0/4 误报**。一个 bulldog 检索未命中仍保留在报告分母。
+这是品种／物种语义候选基线，**不是宠物个体身份准确率或所有入侵物种精度验收**。
+[模型报告](services/inference/evidence/model-quality-v3-20261008.json)保留原失败和后续验证的边界。
 
-本轮仅更新七个既有 Lambda 的代码，包 hash、v2 manifest、LabRole 和
-Active/Successful 状态已核验；真实两用户检查 29/29、终态源对象恢复检查
-29/29 通过，未发送邮件。上传仍停在 QUEUED，推理和正式 Lex 仍返回准确的
-503，完整自动云处理未通过。测试数据已清除，本轮 Lab 在 Edge 确认
-Terminated / 00:00；关闭前两个课程区域的 EC2 均无运行中或待启动实例。
-[前轮记录](docs/environment-acceptance-20261008.md)原样保留。课程会话到期时的
-`voc-cancel-cred` 限制也不能仅凭 STS 身份查询成功判断已恢复。
+完整成品仍需接通现有 Oracle HTTPS 主机、AWS ingest 镜像工作器和正式应用 Lex，并以独立同宠／干扰宠物数据完成验收。
+目前没有可用 Oracle 主机，正式 Lex Bot/Alias 未接线；不能把本轮核心交付描述为全作业完成。
+此前[续验收失败记录](docs/acceptance-continuation-20261008.md)与[前轮云检查](docs/environment-acceptance-20261008.md)原样保留。
 
-第二计算云已按用户最新选择改为**现有甲骨文服务器**。Oracle HTTPS
-推理服务模板和完整服务令牌验签已准备；本轮再核查仍未发现 RUNNING/STOPPED
-主机，因此不能声称 Oracle 已部署或双云链路已验收。Cognito JWKS 过期缓存
-修复只通过代码与本地测试，尚未部署 Oracle 接收端。
+## 核心能力
 
-Google 项目 `ecoguard-fit3184-jlii0474` 仅配置免费 IAM/WIF 身份；账单未绑定，
-没有 Cloud Run、模型存储或镜像仓库。AWS LabRole 换取短期 Google ID token，
-Oracle 验证其签名、issuer、audience 和固定服务账号，并对查询独立验证
-Cognito access token。实际 LabRole→Google WIF 交换、令牌验签和错误角色拒绝
-已通过；Oracle 接收端仍未部署。[IAM 官方价格](https://cloud.google.com/iam/pricing)。
-
-**额外自费上限为 A$0**。不创建新的 Oracle VM/负载均衡，不启用 Google
-计算服务。AWS 主要使用课程额度。课程账号的 Lex 仍受限；个人 AWS
-账号已完成临时 Lex Bot 的创建、构建、发布及正式槽位补测，累计八种场景
-均有通过证据，包含同会话物种追问；初轮 7/8、修复后 2/2，测试资源已清理。
-免费计划及 US$100 赠金此前已核实。本轮个人 MCP 身份可用，Sydney/us-east-1
-ListBots 均为空；正式应用 Bot/Alias 和查询接线仍未完成，见
-[Lex 验证记录](docs/lex-resolution.md)。
-
-## 手动 Lex
-
-[完整 PowerShell 操作和接线](docs/manual-lex-setup.md)；
-[真实 Lex V2 部署器](services/aws/tools/deploy_lex.py)。部署器默认离线计划，
-显式 `--apply` 才创建意图、槽位、locale、version、alias 和限定 alias 的
-Lambda invoke permission。不会修改课程 IAM。
+- 权限、稳定分页、状态与错误契约；标签和数量条件使用 AND。
+- checksum 去重、真实图片／视频校验、缩略图、10 秒抽帧、分类和模型写回。
+- 浏览器上传签名 600 秒；临时查询从创建起共 900 秒，续签与重试不延长期限。
+- 可恢复查询失败保留输入并提供 Retry；最多两次自动短重试。成功、永久失败、取消和过期会清理输入。
+- 照片、描述和联合寻宠只比较同版特征；联合查询要求两种输入匹配同一个宠物裁剪，强照片不能盖过矛盾文字。
+- 批量标签、人工物种标签抑制、重复删除回执、迟到结果失效、对象及索引一致性。
 
 ## 本地启动
 
@@ -63,52 +43,82 @@ Set-Location D:\3184a2
 .\scripts\dev.ps1 web
 ```
 
-前端默认使用真实 Cognito。要进入可见的开发模式，必须在
-apps/web/.env.local 中明确设置 `VITE_DEV_MODE=true`，而且只能在 loopback
-使用。内存适配器不模拟真实 AI、Cognito、SNS 或 Lex 成功。缺少服务时
-会显示真实错误；开发模式不能作为云验收证据。
+前端默认使用真实 Cognito。要进入可见开发模式，在 `apps/web/.env.local` 明确设置
+`VITE_DEV_MODE=true`，仅允许 loopback。开发 API 使用内存数据，缺少真实服务会明确报错；
+不会模拟 AI、Cognito、SNS 或 Lex 成功。暂停期间云端登录／API／S3 不可用于在线演示。
 
-## 代码和配置
+## 检查与真实本机复现
+
+```powershell
+.\scripts\verify.ps1
+.\services\inference\.venv\Scripts\python.exe -m pytest services/inference/tests -q
+.\.venv\Scripts\python.exe -m unittest discover -s infra/oracle/tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s infra/aws/tests -v
+.\.venv\Scripts\python.exe scripts/fit_pet_calibration.py --check
+```
+
+真实模型离线检查需要已验证的约 2.08 GiB 模型缓存，见[推理配置](services/inference/ENVIRONMENT.md)。
+固定 COCO 双猫 PNG 来自[公开文档素材](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/coco_sample.png)，
+保存在忽略的 `tmp/model-smoke/coco_sample.png`；脚本验证其 SHA-256，不自动下载或更换样本。
+复现输出目录必须全新，避免覆盖失败证据：
+
+```powershell
+.\services\inference\.venv\Scripts\python.exe scripts/check_core_local.py `
+  --sample tmp/model-smoke/coco_sample.png --output-dir tmp/my-core-run
+.\services\inference\.venv\Scripts\python.exe scripts/check_video_local.py `
+  --sample tmp/model-smoke/coco_sample.png --output-dir tmp/my-video-run
+```
+
+视频检查使用本机已安装的 Scoop FFmpeg/FFprobe。两只本地身份、内存队列及空入口识别 fixture
+均在报告显式标注；没有邮件发送、云操作或真实宠物身份结论。
+`scripts/evaluate_pet_quality.py` 可验证来源哈希、划分和真实预计算特征，使用生产 Worker 评分，
+不会加载模型或把合成向量当作 AI 证据。真实身份基准仍需人工标签和至少 50 个独立保留查询来源。
+
+## 模型与评分冻结
+
+当前 manifest 为 `ecoguard-models-2026-10-08-v3`，SHA-256：
+`639595e1e9ffe18cb11ead1c7480ffe7a31bf767f6cbaf6b8375829227a569ae`。
+Grounding DINO 提供候选框，SigLIP2 在同一裁剪上统一比较物种，避免跨提示分数覆盖标签；
+文字显式小写并按 64 token 处理。图片和文字分别使用仅校准集拟合的单调评分，
+各自门槛固定 0.5，联合分数为两者几何均值。分数是候选排序依据，不是身份概率。
+40 对公开语义校准数据及拟合器可复算；holdout 未参与拟合或阈值选择。
+
+旧 v2 manifest 按原字节归档在 `config/manifests/`。任务固定 manifest，v3 不接 v2 任务，
+异版向量不比较；旧媒体不能自动视为新索引，恢复时需审查重建方案。
+视频计数是每物种的帧内最大数量，不是跨帧唯一动物数。
+
+## 云环境与费用
+
+| 云 | 当前项目状态 |
+|---|---|
+| AWS 课程账号 `360493183467` / `default` / us-east-1 | Cognito、私有 S3、5 张按请求计费 DynamoDB 表、4 个 SQS 工作队列及 DLQ、ECR、7 个 Lambda、HTTP API 保留；运行和访问暂停 |
+| AWS 个人账号 `011154879765` / `ecoguard-personal` | Toolkit/MCP 已验证；Sydney/us-east-1 无 Lex Bot；当前项目无新部署 |
+| Google `ecoguard-fit3184-jlii0474` | IAM/WIF 身份接线，账单未绑定，无计算部署 |
+| Oracle | 既有服务器部署模板已准备；当前未找到可用主机，未部署应用 |
+
+课程 API `https://i4zicvj5s2.execute-api.us-east-1.amazonaws.com/api/v1` 当前关闭。
+Cognito pool 为 `us-east-1_9nR2hwyVJ`，client 为 `6io5inllom6a5l43038uhbluvi`；
+这些是公开配置，不是凭证。AWS LabRole→Google WIF 和令牌验签曾实际通过；
+Oracle 接收端、完整自动入库和正式 Lex 仍待验收。SNS 确认及唯一授权测试邮件已实际实收，本轮没有再发邮件。
+
+用户选择保留云端数据和配置，并接受少量存储额度消耗。**暂停不保证账单为零**：
+S3、DynamoDB、日志等保留数据仍可能占用额度；队列消息、TTL 和日志保留期仍继续。
+不创建新 VM、负载均衡或 Google 计算，不启动已停止服务器，不处理其他项目。
+[停用、检查及恢复说明](infra/aws/SHUTDOWN.md)。密钥、登录缓存、`.env`、原图／向量、Terraform state 均不入 Git。
+
+## 代码与队友接管
 
 | 路径 | 内容 |
 |---|---|
-| apps/web | React / TypeScript 完整英文界面，官方 Cognito SDK |
-| packages/domain | 权限、计数、标签、搜索等确定性规则 |
-| services/aws | API、预处理、推理任务、删除、通知、outbox、清理、Lex |
-| services/inference | Grounding DINO + SigLIP2、Cognito / Oracle 令牌验证 |
-| infra/aws | AWS 资源及保护路由；课程角色权限限制见说明 |
-| infra/gcp | 默认仅免费 IAM / WIF；计算部署默认关闭 |
-| infra/oracle | 既有服务器部署模板，不创建付费基础设施 |
-| config/model.locked.json | 固定模型版本、全部 artifact / taxonomy SHA-256 |
-| docs | 原计划、部署边界、权限问题与操作说明 |
+| `apps/web` | React / TypeScript 英文界面、Cognito SDK、查询重试与过期恢复 |
+| `packages/domain` | 权限、数量、标签、AND 与时间规则 |
+| `services/aws` | API、预处理、推理任务、删除、通知、outbox、清理、Lex |
+| `services/inference` | DINO / SigLIP2、可终止模型 Worker、服务令牌与 Cognito 验签 |
+| `infra/aws` / `infra/gcp` / `infra/oracle` | 原 Terraform 基础设施、IAM/WIF、既有 Oracle 主机模板 |
+| `config` / `scripts` | 固定模型与校准、可复算评估、本地和停用检查器 |
 
-模型版本为 `ecoguard-models-2026-10-07-v2`。保持每个任务固定 manifest
-版本；兼容模型更新由配置驱动。图片与文字特征仅在 featureVersion 一致
-时比较。视频按每物种的帧内最大数量聚合，不能据此声称跨帧唯一动物数。
+B 接管界面与用户体验；C 接管既有 Oracle、ingest 镜像和云部署；D 接管正式 Lex、邮件、独立数据、完整验收、演示与报告。
+A 的核心交接详见[最新记录](docs/core-completion-20261008.md)，完整验收与贡献边界仍按[四人计划](docs/product-and-implementation-plan.md)。
 
-## 已有验证及限制
-
-最新分项为后端 88、前端 29、推理/鉴权 59、保留 Oracle 门禁 8；前端构建和
-AWS/GCP Terraform validate 通过。真实本机模型在此前公开样本上检测出两只猫，
-生成真实 768 维单位向量；同源裁剪的本地链路检查不是独立个体准确率评估。
-4/24/120 秒视频抽帧与模型已实测；最大 12 帧冷启动 209.312 秒，临时文件清零。
-当前单 worker 并发请求返回可重试的 MODEL_BUSY，重试成功。
-此前失败样本证据已单独保留。这些结果不证明完整物种精度或真实寻宠准确率。
-
-SNS 确认、真实通知 Lambda、邮件实收及重复/权限/标签/取消负例已验证；使用
-独立通知 fixture，不能替代自动入库链路。真实 Edge 文件选择及 S3 上传也通过。
-完整自动云处理、Oracle HTTPS及正式应用 Lex 仍需验收。照片与描述
-联合输入代码已修复，但正确文字仍被阈值过滤，无关 car 文字配同图仍返回候选。
-新增 DINO-only 基线把 4 张猫全部判为 fox、未生成 pet features；图库不完整使
-14 个语义查询保守记为失败。未调阈值掩盖失败，也未验收真实 Rekognition 混合
-路径或宠物个体身份。浏览器上传签名 600/900 秒、query 15 分钟/3600 秒的
-计划与实现差异已显式记录，仍待对齐。
-
-[四人产品实施与验收计划](docs/product-and-implementation-plan.md) ·
-[部署流程](docs/deployment-runbook.md) ·
-[云环境状态](docs/cloud-environment-status.md) ·
-[22 项验收矩阵](docs/acceptance-matrix.md)
-
-个人 AWS 账号的 CLI 登录、24 个 AWS 技能和 AWS MCP 已在本机配置并验证。
-[Agent Toolkit 配置记录](docs/aws-agent-toolkit-setup.md) 包含 profile、区域、
-启动方式和实际验证范围。
+[部署流程](docs/deployment-runbook.md) · [22 项验收矩阵](docs/acceptance-matrix.md) ·
+[手动 Lex](docs/manual-lex-setup.md) · [Toolkit 配置](docs/aws-agent-toolkit-setup.md)

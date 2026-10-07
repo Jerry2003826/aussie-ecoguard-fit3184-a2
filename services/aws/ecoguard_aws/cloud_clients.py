@@ -2,18 +2,30 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from datetime import datetime
 from ecoguard_domain import DomainError
 
 
 class CloudRunClient:
+    MAX_TRANSIENT_RETRIES = 2
+
     def __init__(self, config):
         self.config = config
         self.token, self.token_expiry = None, 0
 
-    def _google_token(self):
+    @staticmethod
+    def _timeout(deadline):
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            raise DomainError("INFERENCE_TIMEOUT", "The inference request exhausted its time budget. Retry while the query remains active.", 504, retryable=True)
+        connect = min(5, remaining / 4)
+        return connect, remaining - connect
+
+    def _google_token(self, deadline):
         if self.token and time.time() < self.token_expiry - 120:
             return self.token
         import google.auth
+        from google.auth.exceptions import GoogleAuthError, TransportError
         from google.auth.transport.requests import Request
         import requests
         if not self.config.google_credentials_file or not self.config.google_invoker_email:
@@ -25,10 +37,18 @@ class CloudRunClient:
         federation.pop("service_account_impersonation_url", None)
         federation.pop("service_account_impersonation", None)
         credentials, _ = google.auth.load_credentials_from_dict(federation, scopes=["https://www.googleapis.com/auth/cloud-platform"])
-        credentials.refresh(Request())
-        response = requests.post(f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{self.config.google_invoker_email}:generateIdToken", headers={"Authorization": f"Bearer {credentials.token}"}, json={"audience": self.config.inference_url.rstrip("/"), "includeEmail": True}, timeout=(5, 15))
+        transport = Request()
+        def bounded_request(*args, **kwargs):
+            kwargs["timeout"] = self._timeout(deadline)
+            return transport(*args, **kwargs)
+        try:
+            credentials.refresh(bounded_request)
+        except GoogleAuthError as error:
+            transient = isinstance(error, TransportError) or bool(getattr(error, "retryable", False))
+            raise DomainError("FEDERATION_FAILED", "Could not obtain the inference service identity.", 503, retryable=transient) from error
+        response = requests.post(f"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{self.config.google_invoker_email}:generateIdToken", headers={"Authorization": f"Bearer {credentials.token}"}, json={"audience": self.config.inference_url.rstrip("/"), "includeEmail": True}, timeout=self._timeout(deadline))
         if response.status_code != 200:
-            raise DomainError("FEDERATION_FAILED", "Could not obtain the inference service identity.", 503)
+            raise DomainError("FEDERATION_FAILED", "Could not obtain the inference service identity.", 503, retryable=response.status_code in (408, 429) or response.status_code >= 500)
         self.token = response.json()["token"]
         self.token_expiry = time.time() + 3300
         return self.token
@@ -38,19 +58,38 @@ class CloudRunClient:
         url = self.config.inference_url.rstrip("/")
         if not url or not url.startswith("https://"):
             raise DomainError("INFERENCE_UNAVAILABLE", "A protected HTTPS inference service is required.", 503)
-        headers = {"X-Serverless-Authorization": f"Bearer {self._google_token()}"}
-        if user_token:
-            headers["Authorization"] = f"Bearer {user_token}"
-        try:
-            response = requests.post(url + path, json=payload, headers=headers, timeout=(5, timeout))
-        except requests.RequestException as exc:
-            raise RuntimeError("Inference transport failed; task may be retried") from exc
-        if response.status_code in (429, 502, 503, 504):
-            raise RuntimeError(f"Inference dependency unavailable ({response.status_code})")
-        if response.status_code >= 400:
-            raise DomainError("INFERENCE_REJECTED", "The inference service rejected this task.", 422)
-        data = response.json()
-        return data.get("data", data)
+        deadline = time.time() + timeout
+        if payload.get("deadlineAt"):
+            parsed = datetime.fromisoformat(payload["deadlineAt"].replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                raise DomainError("INVALID_DEADLINE", "Inference deadlines must include a time zone.")
+            deadline = min(deadline, parsed.timestamp())
+        for attempt in range(self.MAX_TRANSIENT_RETRIES + 1):
+            self._timeout(deadline)
+            try:
+                headers = {"X-Serverless-Authorization": f"Bearer {self._google_token(deadline)}"}
+                if user_token:
+                    headers["Authorization"] = f"Bearer {user_token}"
+                response = requests.post(url + path, json=payload, headers=headers, timeout=self._timeout(deadline))
+                self._timeout(deadline)  # A late response must not escape the shared budget.
+                if response.status_code in (408, 429) or response.status_code >= 500:
+                    raise DomainError("INFERENCE_TRANSIENT", "The inference service is temporarily unavailable. Retry this task.", 503, retryable=True)
+                if response.status_code >= 400:
+                    raise DomainError("INFERENCE_REJECTED", "The inference service rejected this task.", 422)
+                data = response.json()
+                if not isinstance(data, dict):
+                    raise DomainError("INFERENCE_RESPONSE", "The inference service returned an invalid response.", 502)
+                return data.get("data", data)
+            except requests.RequestException as error:
+                failure = DomainError("INFERENCE_TRANSIENT", "Inference transport failed. Retry this task.", 503, retryable=True)
+                failure.__cause__ = error
+            except DomainError as error:
+                if not error.retryable:
+                    raise
+                failure = error
+            if attempt == self.MAX_TRANSIENT_RETRIES or deadline - time.time() <= 0.2 * (2 ** attempt):
+                raise failure
+            time.sleep(0.2 * (2 ** attempt))
 
     def authorize_query(self, principal, request_id, purpose):
         if not principal.token:

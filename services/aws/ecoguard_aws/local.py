@@ -5,7 +5,9 @@ Only bind to loopback. This process keeps all records and uploaded bytes in memo
 """
 import os
 import threading
+import time
 from collections import deque
+from contextlib import asynccontextmanager
 
 from ecoguard_domain import DomainError, Principal
 from .api import dispatch
@@ -15,15 +17,60 @@ from .storage import MemoryStorage
 from .service import Service
 from .cloud_clients import UnconfiguredInference
 from .media_processing import Preprocessor
-from .workers import Workers
+from .workers import Workers, WorkerBusy
 
 
 class LocalQueue:
     def __init__(self):
         self.pending = deque()
+        self.deferred = deque()
 
     def send(self, kind, payload):
         self.pending.append((kind, payload))
+
+
+class LocalTaskPump:
+    """A single local consumer with durable, visible failure states in the repository."""
+    def __init__(self, workers, queue):
+        self.workers, self.queue = workers, queue
+        self.lock = threading.Lock()
+
+    def run(self):
+        if not self.lock.acquire(blocking=False):
+            return  # The active consumer or periodic scheduler will pick up new work.
+        try:
+            for _ in range(len(self.queue.deferred)):
+                ready_at, kind, payload = self.queue.deferred.popleft()
+                if ready_at <= time.time():
+                    self.queue.send(kind, payload)
+                else:
+                    self.queue.deferred.append((ready_at, kind, payload))
+            self.workers.dispatch()
+            self.workers.cleanup()
+            for _ in range(50):
+                if not self.queue.pending:
+                    break
+                kind, payload = self.queue.pending.popleft()
+                if kind == "NOTIFY":
+                    continue  # Never claim that the local adapter sent SNS email.
+                try:
+                    getattr(self.workers, {"INGEST": "ingest", "INFER": "infer", "DELETE": "delete"}[kind])(payload["entityId"])
+                except WorkerBusy:
+                    self.queue.deferred.append((time.time() + 1, kind, payload))
+                except Exception as error:
+                    try:
+                        operation = self.workers.s.operation(payload["entityId"])
+                        failure = error if isinstance(error, DomainError) else DomainError("LOCAL_DEPENDENCY_FAILED", "A development dependency failed. Retry this task.", 503, retryable=True)
+                        self.workers._failure(payload["entityId"], failure, expected=operation)
+                    except Exception:
+                        # If recording the failure also fails, retain this delivery.
+                        self.queue.deferred.append((time.time() + 1, kind, payload))
+                    print(f"Development task failed: {type(error).__name__}; no cloud success was simulated")
+                self.workers.dispatch()
+        except Exception as error:
+            print(f"Development queue error: {type(error).__name__}")
+        finally:
+            self.lock.release()
 
 
 def create_app(*, service=None):
@@ -35,33 +82,31 @@ def create_app(*, service=None):
         raise RuntimeError("Set ECO_MODE=local to explicitly enable development adapters")
     if service is None:
         service = Service(config, MemoryRepository(), MemoryStorage(config), inference=UnconfiguredInference())
-    app = FastAPI(title="Aussie EcoGuard — DEVELOPMENT ONLY", docs_url="/_dev/docs")
+    stopped = threading.Event()
+    @asynccontextmanager
+    async def lifespan(app):
+        def scheduler():
+            while not stopped.wait(1):
+                pump.run()
+        scheduler_thread = threading.Thread(target=scheduler, daemon=True)
+        scheduler_thread.start()
+        try:
+            yield
+        finally:
+            stopped.set()
+            # The daemon cannot hold process shutdown hostage to a failed dependency.
+            scheduler_thread.join(timeout=1)
+    app = FastAPI(title="Aussie EcoGuard — DEVELOPMENT ONLY", docs_url="/_dev/docs", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=[config.web_url], allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key", "X-Ecoguard-Dev-User", "X-Ecoguard-Dev-Email", "x-amz-checksum-sha256"])
     queue = LocalQueue()
     workers = Workers(service, Preprocessor(config, service.storage), queue)
     app.state.service, app.state.workers = service, workers
-
-    def pump():
-        try:
-            workers.dispatch()
-            count = 0
-            while queue.pending and count < 50:
-                kind, payload = queue.pending.popleft()
-                count += 1
-                if kind == "NOTIFY":
-                    # Local mode does not claim that SNS sent an email.
-                    continue
-                try:
-                    getattr(workers, {"INGEST": "ingest", "INFER": "infer", "DELETE": "delete"}[kind])(payload["entityId"])
-                except Exception as exc:
-                    print(f"Development worker stopped: {type(exc).__name__}; no cloud success was simulated")
-                workers.dispatch()
-        except Exception as exc:
-            print(f"Development queue error: {type(exc).__name__}")
+    pump = LocalTaskPump(workers, queue)
+    app.state.pump = pump
 
     @app.exception_handler(DomainError)
     async def domain_error(request, error):
-        return JSONResponse({"error": {"code": error.code, "message": error.message}}, status_code=error.status)
+        return JSONResponse({"error": {"code": error.code, "message": error.message, "retryable": error.retryable}}, status_code=error.status)
 
     @app.exception_handler(Conflict)
     async def conflict_error(request, error):
@@ -78,7 +123,7 @@ def create_app(*, service=None):
             raise DomainError("FILE_TOO_LARGE", "File exceeds the local upload limit.", 413)
         key = service.storage.accept_upload(token, data)
         queue.send("INGEST", {"entityId": key.rsplit("/", 1)[1]})
-        threading.Thread(target=pump, daemon=True).start()
+        threading.Thread(target=pump.run, daemon=True).start()
         return Response(status_code=200)
 
     @app.get("/_dev/objects/{token}")
@@ -94,7 +139,7 @@ def create_app(*, service=None):
         principal = Principal(user, request.headers.get("x-ecoguard-dev-email", f"{user}@example.invalid"), True)
         body = await request.json() if request.method in ("POST", "PATCH") and await request.body() else {}
         status, data = dispatch(service, principal, request.method, "/api/v1/"+path, body, dict(request.query_params))
-        threading.Thread(target=pump, daemon=True).start()
+        threading.Thread(target=pump.run, daemon=True).start()
         return JSONResponse({"data": data, "mode": "development-only"}, status_code=status, headers={"Cache-Control": "no-store"})
 
     return app

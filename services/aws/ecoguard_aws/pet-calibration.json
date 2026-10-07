@@ -1,0 +1,79 @@
+{
+  "policyVersion": "siglip2-semantic-platt-v1",
+  "featureVersion": "siglip2-base-256-animal-crop-v3:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-animal-crop-text64-lowercase-v3",
+  "semanticOnly": true,
+  "image": {
+    "scale": 7.756365994090785,
+    "bias": -6.076414087327387,
+    "minimumScore": 0.5
+  },
+  "text": {
+    "scale": 45.20349365254173,
+    "bias": -4.192056527921541,
+    "minimumScore": 0.5
+  },
+  "combination": "and_geometric_mean",
+  "fit": {
+    "method": "standardized L2-regularized monotonic Platt",
+    "regularization": 0.01,
+    "objective": "mean logistic loss + 0.01 * (standardized slope squared + intercept squared) / 2",
+    "thresholdRule": "fixed 0.5 before holdout",
+    "dataSha256": "5a1e5cca569a35c9243e589102d86ab3d90d39b82f771fa0d52b5a583b322ace",
+    "sourceCounts": {
+      "gallery": 4,
+      "calibrationQueries": 4,
+      "holdoutUsed": 0
+    },
+    "image": {
+      "pairs": 8,
+      "positivePairs": 4,
+      "negativePairs": 4,
+      "positiveCosineRange": [
+        0.6945372214045068,
+        0.8651053567576578
+      ],
+      "negativeCosineRange": [
+        0.6356963973125717,
+        0.8398199877454879
+      ],
+      "cosineAtDecisionBoundary": 0.7834099231465772,
+      "fitIterations": 5,
+      "truePositive": 3,
+      "falsePositive": 2,
+      "standardizationMean": 0.7819561084284975,
+      "standardizationStd": 0.07598006862343845
+    },
+    "text": {
+      "pairs": 32,
+      "positivePairs": 8,
+      "negativePairs": 24,
+      "positiveCosineRange": [
+        0.1006739982045898,
+        0.1644159593817694
+      ],
+      "negativeCosineRange": [
+        -0.03539506714757134,
+        0.10906070999374323
+      ],
+      "cosineAtDecisionBoundary": 0.09273744547587258,
+      "fitIterations": 7,
+      "truePositive": 8,
+      "falsePositive": 2,
+      "standardizationMean": 0.04660219141768299,
+      "standardizationStd": 0.05783213935727154
+    },
+    "datasetRevision": "089695c834a7deb60505b7cc506672db1c31a6aa",
+    "dataset": "timm/oxford-iiit-pet",
+    "labelSemantics": "same breed or species, not same animal",
+    "calibrationSourceIds": [
+      "train-Abyssinian_125",
+      "train-Siamese_167",
+      "train-american_bulldog_138",
+      "train-beagle_178",
+      "train-Abyssinian_193",
+      "train-Siamese_14",
+      "train-american_bulldog_124",
+      "train-beagle_143"
+    ]
+  }
+}

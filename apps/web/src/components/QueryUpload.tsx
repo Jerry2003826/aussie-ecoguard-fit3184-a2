@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Search, Upload, X, ShieldCheck } from 'lucide-react';
-import { api, uploadFile } from '../api/client';
+import { api, ApiError, uploadFile } from '../api/client';
 import { checksum, resultsOf, terminalJobStates, validateFile, videoDuration } from '../api/media';
 import type { Job, UploadAuthorization } from '../api/types';
 import { useAuth } from '../auth/AuthProvider';
@@ -20,8 +20,25 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [deadlineReached, setDeadlineReached] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const client = useQueryClient();
+  const deadlines = [job?.cleanupDeadline, job?.resultExpiresAt].filter(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value),
+  );
+  const deadline = deadlines.length ? Math.min(...deadlines) : undefined;
+  useEffect(() => {
+    const remaining = deadline === undefined ? 0 : deadline * 1000 - Date.now();
+    setDeadlineReached(remaining <= 0);
+    if (remaining <= 0) return;
+    // Failed jobs stop polling, so expire the action even while this page is idle.
+    const timer = window.setTimeout(
+      () => setDeadlineReached(true),
+      Math.min(remaining, 2147483647),
+    );
+    return () => window.clearTimeout(timer);
+  }, [deadline]);
   useEffect(() => {
     if (!file?.type.startsWith('image/')) {
       setPreview('');
@@ -116,6 +133,49 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
       setError(e);
     } finally {
       setBusy(false);
+    }
+  }
+  const canRetry = Boolean(
+    user &&
+    queryId &&
+    job?.status === 'FAILED' &&
+    job.retryable === true &&
+    job.cleaned !== true &&
+    job.cleanupStatus !== 'COMPLETED' &&
+    deadline !== undefined &&
+    !deadlineReached &&
+    deadline * 1000 > Date.now(),
+  );
+  async function retry() {
+    if (!queryId || !job || !canRetry || busy) return;
+    setError(undefined);
+    setBusy(true);
+    setRetrying(true);
+    const queryKey = ['query-job', queryId];
+    try {
+      const next = await api.post<Job>(`/jobs/${encodeURIComponent(queryId)}/retry`);
+      client.setQueryData(queryKey, next);
+      setJob(next);
+      await client.invalidateQueries({ queryKey });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        unavailable();
+        return;
+      }
+      setError(e);
+      if (e instanceof ApiError && (e.status === 410 || e.code === 'NOT_RETRYABLE')) {
+        const next = {
+          ...job,
+          retryable: false,
+          ...(e.status === 410 ? { status: 'EXPIRED', error: undefined } : {}),
+        };
+        client.setQueryData(queryKey, next);
+        setJob(next);
+        if (e.status !== 410) await client.invalidateQueries({ queryKey });
+      }
+    } finally {
+      setBusy(false);
+      setRetrying(false);
     }
   }
   const active = Boolean(queryId && (!job || !terminalJobStates.has(job.status)));
@@ -229,6 +289,21 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
         <section className="query-results">
           <h2>{pet ? 'Possible sightings' : 'Matching sightings'}</h2>
           <JobStatus id={queryId} query onUpdate={update} onUnavailable={unavailable} />
+          {(canRetry || retrying) && (
+            <div>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => void retry()}
+              >
+                {retrying ? 'Retrying search…' : 'Retry search'}
+              </button>
+              <p className="muted small">
+                Retries reuse this search within its original time limit.
+              </p>
+            </div>
+          )}
           {pet && results.length > 0 && (
             <p className="muted">
               These are visual or descriptive similarities, not a confirmed identification. Check
@@ -249,6 +324,7 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
           {job && terminalJobStates.has(job.status) && (
             <button
               className="text-button"
+              disabled={busy}
               onClick={() => {
                 sessionStorage.removeItem(key);
                 setQueryId('');

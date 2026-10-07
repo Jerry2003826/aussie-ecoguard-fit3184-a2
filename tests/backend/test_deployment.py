@@ -39,7 +39,9 @@ class AdapterTests(unittest.TestCase):
         digest = hashlib.sha256(b"image").hexdigest()
         signed = storage.sign_upload("incoming/library/id", "image/png", digest, 5)
         query = parse_qs(urlparse(signed["uploadUrl"]).query)
-        self.assertEqual(query["X-Amz-Expires"], ["900"])
+        self.assertEqual(query["X-Amz-Expires"], ["600"])
+        shortened = storage.sign_upload("incoming/query/id", "image/png", digest, 5, 37)
+        self.assertEqual(parse_qs(urlparse(shortened["uploadUrl"]).query)["X-Amz-Expires"], ["37"])
         self.assertEqual(set(query["X-Amz-SignedHeaders"][0].split(";")), {"content-length", "content-type", "host", "x-amz-checksum-sha256"})
         self.assertEqual(signed["headers"]["x-amz-checksum-sha256"], checksum_header(digest))
         with Stubber(storage.client) as stub:

@@ -23,6 +23,11 @@ variable "deploy_api" {
   type    = bool
   default = false
 }
+variable "runtime_enabled" {
+  type        = bool
+  description = "Reversible runtime/access pause. Keep deploy_api and all existing resource inputs unchanged; false retains resources and data."
+  default     = true
+}
 variable "lambda_zip" {
   type    = string
   default = "../../build/aws-lambda.zip"
@@ -46,7 +51,7 @@ variable "web_url" {
 }
 variable "model_manifest_version" {
   type    = string
-  default = "ecoguard-models-2026-10-07-v2"
+  default = "ecoguard-models-2026-10-08-v3"
 }
 variable "lex_bot_id" {
   type    = string

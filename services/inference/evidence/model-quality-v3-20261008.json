@@ -1,0 +1,448 @@
+{
+  "schemaVersion": 1,
+  "reportKind": "real-local-model-quality",
+  "date": "2026-10-08",
+  "status": "bounded_semantic_gates_met",
+  "manifestVersion": "ecoguard-models-2026-10-08-v3",
+  "manifestSha256": "639595e1e9ffe18cb11ead1c7480ffe7a31bf767f6cbaf6b8375829227a569ae",
+  "featureVersion": "siglip2-base-256-animal-crop-v3:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-animal-crop-text64-lowercase-v3",
+  "claims": {
+    "realCachedModels": true,
+    "independentImageHoldout": true,
+    "individualIdentityAcceptance": false,
+    "allSpeciesAcceptance": false,
+    "actualAwsRekognitionHybridAcceptance": false,
+    "cloudDeploymentAcceptance": false,
+    "fullAssignmentAcceptance": false
+  },
+  "rootCauses": [
+    "Independent DINO prompt grounding confidences were incorrectly compared as species confidence; a cat region scored fox above cat.",
+    "The pinned Gemma tokenizer did not apply SigLIP2 lowercase preprocessing; explicit lowercase was required.",
+    "Image-image and text-image raw cosine distributions differ; a common raw threshold and arithmetic combined score were not calibrated for these modalities."
+  ],
+  "changes": [
+    "Union of original fixed DINO prompts proposes boxes; shared SigLIP2 class bank classifies deduplicated crops, including fixed rejection labels.",
+    "Explicit lowercase, fixed length 64 and normalized vectors; actual uppercase/lowercase same sentence now yields identical vectors.",
+    "Calibration-only monotonic sigmoid for each modality, fixed 0.5 gate; combined requires both gates on the same crop then geometric mean."
+  ],
+  "modelLearnedLogits": {
+    "scale": 112.90117645263672,
+    "bias": -16.77180290222168,
+    "usedAsRetrievalIdentityProbability": false
+  },
+  "calibration": {
+    "policyVersion": "siglip2-semantic-platt-v1",
+    "featureVersion": "siglip2-base-256-animal-crop-v3:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-animal-crop-text64-lowercase-v3",
+    "semanticOnly": true,
+    "image": {
+      "scale": 7.756365994090785,
+      "bias": -6.076414087327387,
+      "minimumScore": 0.5
+    },
+    "text": {
+      "scale": 45.20349365254173,
+      "bias": -4.192056527921541,
+      "minimumScore": 0.5
+    },
+    "combination": "and_geometric_mean",
+    "fit": {
+      "method": "standardized L2-regularized monotonic Platt",
+      "regularization": 0.01,
+      "objective": "mean logistic loss + 0.01 * (standardized slope squared + intercept squared) / 2",
+      "thresholdRule": "fixed 0.5 before holdout",
+      "dataSha256": "5a1e5cca569a35c9243e589102d86ab3d90d39b82f771fa0d52b5a583b322ace",
+      "sourceCounts": {
+        "gallery": 4,
+        "calibrationQueries": 4,
+        "holdoutUsed": 0
+      },
+      "image": {
+        "pairs": 8,
+        "positivePairs": 4,
+        "negativePairs": 4,
+        "positiveCosineRange": [
+          0.6945372214045068,
+          0.8651053567576578
+        ],
+        "negativeCosineRange": [
+          0.6356963973125717,
+          0.8398199877454879
+        ],
+        "cosineAtDecisionBoundary": 0.7834099231465772,
+        "fitIterations": 5,
+        "truePositive": 3,
+        "falsePositive": 2,
+        "standardizationMean": 0.7819561084284975,
+        "standardizationStd": 0.07598006862343845
+      },
+      "text": {
+        "pairs": 32,
+        "positivePairs": 8,
+        "negativePairs": 24,
+        "positiveCosineRange": [
+          0.1006739982045898,
+          0.1644159593817694
+        ],
+        "negativeCosineRange": [
+          -0.03539506714757134,
+          0.10906070999374323
+        ],
+        "cosineAtDecisionBoundary": 0.09273744547587258,
+        "fitIterations": 7,
+        "truePositive": 8,
+        "falsePositive": 2,
+        "standardizationMean": 0.04660219141768299,
+        "standardizationStd": 0.05783213935727154
+      },
+      "datasetRevision": "089695c834a7deb60505b7cc506672db1c31a6aa",
+      "dataset": "timm/oxford-iiit-pet",
+      "labelSemantics": "same breed or species, not same animal",
+      "calibrationSourceIds": [
+        "train-Abyssinian_125",
+        "train-Siamese_167",
+        "train-american_bulldog_138",
+        "train-beagle_178",
+        "train-Abyssinian_193",
+        "train-Siamese_14",
+        "train-american_bulldog_124",
+        "train-beagle_143"
+      ]
+    }
+  },
+  "data": {
+    "officialSource": "https://www.robots.ox.ac.uk/~vgg/data/pets/",
+    "mirror": "https://huggingface.co/datasets/timm/oxford-iiit-pet",
+    "mirrorRevision": "089695c834a7deb60505b7cc506672db1c31a6aa",
+    "mirrorLicenseMetadata": "CC-BY-SA-4.0",
+    "gallerySources": 4,
+    "calibrationQuerySources": 4,
+    "independentHeldoutImageSources": 8,
+    "publicSourceMetadata": [
+      {
+        "id": "train-Abyssinian_125",
+        "role": "gallery",
+        "sha256": "5b0ddddd2f3f379a225712f5e9b6a3f2fc0188366ebb6e19b3c99432d726fa21",
+        "breed": "abyssinian",
+        "species": "cat"
+      },
+      {
+        "id": "train-Siamese_167",
+        "role": "gallery",
+        "sha256": "81ae47c534c3e949305a0827997d0f8b1cb5d9d12d9dd6d1f43e878e9ac5f5d9",
+        "breed": "siamese",
+        "species": "cat"
+      },
+      {
+        "id": "train-american_bulldog_138",
+        "role": "gallery",
+        "sha256": "00373188f9410cee1a89640b808dfff81dcf779bb1551daadbbf65be02059c12",
+        "breed": "american_bulldog",
+        "species": "dog"
+      },
+      {
+        "id": "train-beagle_178",
+        "role": "gallery",
+        "sha256": "f872d47c3cffdcc03736856910500b8a4b4030096985cd3e59faafd5da310e98",
+        "breed": "beagle",
+        "species": "dog"
+      },
+      {
+        "id": "train-Abyssinian_193",
+        "role": "calibration",
+        "sha256": "ef50e75655241e801c7aaeebb155da3a21ab57c633f7c6108279960b2f77f5c3",
+        "breed": "abyssinian",
+        "species": "cat"
+      },
+      {
+        "id": "train-Siamese_14",
+        "role": "calibration",
+        "sha256": "47cdb5114426404e47c262a463b847561df9e255b2653bdf687514f5c64a625f",
+        "breed": "siamese",
+        "species": "cat"
+      },
+      {
+        "id": "train-american_bulldog_124",
+        "role": "calibration",
+        "sha256": "180b229cc44c7834e6e9003a84ac1628573010924604ba41dc96bd16eef9fbaf",
+        "breed": "american_bulldog",
+        "species": "dog"
+      },
+      {
+        "id": "train-beagle_143",
+        "role": "calibration",
+        "sha256": "ba6f6aef704dfc474dc46de6726d06228facfe3a3a7a5694cf06bc0e775c8fe0",
+        "breed": "beagle",
+        "species": "dog"
+      },
+      {
+        "id": "test-Abyssinian_65",
+        "role": "holdout",
+        "sha256": "979bef85ccab15be40e491484bc43ae6de8f3d3f1f4b7af7c706c6cb38b882cf",
+        "breed": "abyssinian",
+        "species": "cat"
+      },
+      {
+        "id": "test-Abyssinian_230",
+        "role": "holdout",
+        "sha256": "a18d787b6dfd54403c68ace06d6432174fe7af24584b112a2d9e0ceae004ed31",
+        "breed": "abyssinian",
+        "species": "cat"
+      },
+      {
+        "id": "test-Siamese_73",
+        "role": "holdout",
+        "sha256": "e1b1b7a9688fdbde502dddeee872860fbe7e64c2c4c33193f11fbb8707e6e8f8",
+        "breed": "siamese",
+        "species": "cat"
+      },
+      {
+        "id": "test-Siamese_84",
+        "role": "holdout",
+        "sha256": "9c430c64753ca9c4a89628a2c3b15b61ffdee4987a4257eea0772795b8c938a7",
+        "breed": "siamese",
+        "species": "cat"
+      },
+      {
+        "id": "test-american_bulldog_54",
+        "role": "holdout",
+        "sha256": "cf8377129f4f6244ace5a7a63430601620042f967c5edf231db8fc78407fbe45",
+        "breed": "american_bulldog",
+        "species": "dog"
+      },
+      {
+        "id": "test-american_bulldog_37",
+        "role": "holdout",
+        "sha256": "8054bd246d8743c69ac26df1c938e4311c1b3d89e9bc5f315ef43800a303a791",
+        "breed": "american_bulldog",
+        "species": "dog"
+      },
+      {
+        "id": "test-beagle_30",
+        "role": "holdout",
+        "sha256": "80e75acbfaecb5261f17dc2fa9a870bc70053092a8d6e85606018d7549e67ea3",
+        "breed": "beagle",
+        "species": "dog"
+      },
+      {
+        "id": "test-beagle_6",
+        "role": "holdout",
+        "sha256": "004c9f7cd2c15a9f0f4faa1582252da4ab703a144b7a2549704ee95b0090805d",
+        "breed": "beagle",
+        "species": "dog"
+      }
+    ],
+    "rawImagesOrVectorsCommitted": false,
+    "individualLabelsAvailable": false
+  },
+  "detection": {
+    "heldoutSpeciesCorrect": 8,
+    "heldoutPetFeaturesPresent": 8,
+    "heldoutTotal": 8,
+    "existingCocoCountRegression": {
+      "cat": 2
+    }
+  },
+  "firstEvaluation": {
+    "cases": 24,
+    "productionImplementation": "ecoguard_aws.workers.Workers._query_result",
+    "photo": {
+      "queries": 8,
+      "failedQueries": 0,
+      "positiveQueries": 8,
+      "hitAt1": 7,
+      "hitAt5": 7,
+      "recallAt1": 0.875,
+      "recallAt5": 0.875,
+      "noMatchQueries": 0,
+      "falsePositiveQueries": 0,
+      "noMatchFalsePositiveRate": null,
+      "noMatchInferenceFailures": 0
+    },
+    "combined": {
+      "queries": 8,
+      "failedQueries": 0,
+      "positiveQueries": 8,
+      "hitAt1": 7,
+      "hitAt5": 7,
+      "recallAt1": 0.875,
+      "recallAt5": 0.875,
+      "noMatchQueries": 0,
+      "falsePositiveQueries": 0,
+      "noMatchFalsePositiveRate": null,
+      "noMatchInferenceFailures": 0
+    },
+    "text": {
+      "queries": 8,
+      "failedQueries": 0,
+      "positiveQueries": 4,
+      "hitAt1": 4,
+      "hitAt5": 4,
+      "recallAt1": 1.0,
+      "recallAt5": 1.0,
+      "noMatchQueries": 4,
+      "falsePositiveQueries": 0,
+      "noMatchFalsePositiveRate": 0.0,
+      "noMatchInferenceFailures": 0
+    },
+    "positiveTextScope": "Four positive prompts exactly replay calibration text/gallery pairs; not independent text holdout.",
+    "misses": [
+      "test-american_bulldog_54-photo",
+      "test-american_bulldog_54-combined"
+    ]
+  },
+  "supplementalRephrases": {
+    "cases": 16,
+    "newImageSources": 0,
+    "newTextForms": 4,
+    "negativeTextForms": 4,
+    "text": {
+      "queries": 8,
+      "failedQueries": 0,
+      "positiveQueries": 4,
+      "hitAt1": 4,
+      "hitAt5": 4,
+      "recallAt1": 1.0,
+      "recallAt5": 1.0,
+      "noMatchQueries": 4,
+      "falsePositiveQueries": 0,
+      "noMatchFalsePositiveRate": 0.0,
+      "noMatchInferenceFailures": 0
+    },
+    "combined": {
+      "queries": 8,
+      "failedQueries": 0,
+      "positiveQueries": 8,
+      "hitAt1": 7,
+      "hitAt5": 7,
+      "recallAt1": 0.875,
+      "recallAt5": 0.875,
+      "noMatchQueries": 0,
+      "falsePositiveQueries": 0,
+      "noMatchFalsePositiveRate": null,
+      "noMatchInferenceFailures": 0
+    },
+    "scope": "New phrasings selected before their scores; same fixed policy, same image gallery and heldout crop features. Not an independent image or identity set.",
+    "misses": [
+      "rephrase-test-american_bulldog_54-combined"
+    ]
+  },
+  "frozenGates": {
+    "holdoutSpeciesCorrect": 8,
+    "holdoutUsablePetFeatures": 8,
+    "eachModeRecallAt1": 0.75,
+    "eachModeRecallAt5": 0.875,
+    "unrelatedTextFalsePositives": 0
+  },
+  "thresholdsAdjustedAfterHoldout": false,
+  "inferenceTiming": [
+    {
+      "phase": "final-calibration-and-count-regression",
+      "inferCalls": 9,
+      "embedCalls": 10,
+      "seconds": 213.703
+    },
+    {
+      "phase": "first-image-holdout",
+      "inferCalls": 8,
+      "embedCalls": 8,
+      "seconds": 143.078
+    },
+    {
+      "phase": "supplemental-rephrases",
+      "inferCalls": 0,
+      "embedCalls": 8,
+      "seconds": 5.203
+    }
+  ],
+  "transportScope": "Direct ModelRuntime with validated request/response schemas; local SHA-checked image transport and empty Rekognition entry fixture. Only cached verified weights, CPU four threads, one heavy model process at a time.",
+  "verification": {
+    "inferenceTestsPassed": 72,
+    "newPolicyCases": 13,
+    "existingInferenceCases": 59,
+    "warning": "One existing Starlette/httpx TestClient deprecation warning.",
+    "parameterReproductionMatchesManifest": true,
+    "parameterCheckCommand": "python scripts/fit_pet_calibration.py --check",
+    "pytestCommand": "services/inference/.venv/Scripts/python.exe -m pytest services/inference/tests -q"
+  },
+  "compatibility": {
+    "archivedV2ManifestSha256": "6947e779fb740f252e35cff6f4ea90f03a87a3fe07d52d1c924bc8319ab1f2a6",
+    "v3RejectsOldManifestRequests": true,
+    "legacyVectorsRequireReindex": true,
+    "automaticReindexImplemented": false
+  },
+  "limits": [
+    "Gallery only four public breed examples. Same-breed candidate relevance does not establish individual pet recognition.",
+    "One bulldog is rejected in photo and combined retrieval at the frozen threshold; wrong-breed candidates may still appear below the correct top result.",
+    "Four unrelated negative text strings are small coverage; reused negative strings are not counted as additional independent negatives.",
+    "No independent invasive-species or photo no-match evaluation; no real AWS Rekognition entry in this model study.",
+    "Maximum-video timing, cloud authentication and deployed resource acceptance are separate checks."
+  ],
+  "primaryReferences": [
+    "https://huggingface.co/google/siglip2-base-patch16-256",
+    "https://huggingface.co/docs/transformers/model_doc/siglip2",
+    "https://github.com/huggingface/transformers/issues/49139",
+    "https://github.com/IDEA-Research/GroundingDINO/blob/main/groundingdino/util/inference.py",
+    "https://scikit-learn.org/stable/modules/calibration.html"
+  ],
+  "ignoredRawEvidence": [
+    {
+      "path": "tmp/a04-model-quality-20261008/diagnosis-before.json",
+      "sha256": "3fe739fbb300af5b034c712a54bc0a37189de5ab42f92fdd23d5d80a14538baa"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/diagnosis-before-success.log",
+      "sha256": "bb6d769dc261e00b9835602a956fca9a378b0a1d3533abe041d5a4bc81f74d1d"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/v3-multiprompt-calibration-features.json",
+      "sha256": "af8f5c21b7103b020892238f941c1c1d20b2cdb4806c11c6806d4f1caf609b8f"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/v3-multiprompt-calibration.log",
+      "sha256": "fb867d044d994870105a6caf524845a74ed6603e871c4e0665e48431e54cd4c7"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/v3-multiprompt-holdout-features.json",
+      "sha256": "5fe68b8f2981d74bf29d943b9adfdbd84ebad2cb85d179da8c8af8afdc6b7dfe"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/v3-holdout-first.log",
+      "sha256": "2ff219956bac63d2ebfda87b442c3c85c116a02f7478caae6b6755b6c85bfb8d"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/holdout-evaluation-first.json",
+      "sha256": "43770c897145ddcf23a178fc03cd649c8bb021df0006d390a3a036e0ba5626e3"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/supplemental-rephrase-plan.json",
+      "sha256": "13af58941c8fbf1b717b7f77e79ce8fc7913955084e1d6d684ac8b58e8d11dc6"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/supplemental-rephrase-model.log",
+      "sha256": "bb8d27d6fe39271253ec3dde454cb33ca8d74ef2a9f8027142b04ca7704e4a78"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/rephrase-evaluation-first.json",
+      "sha256": "7dcfe81a1dbcf2727042d64bc83aeae20bc3c86b166fbd1fea2bcaf9c9c20c74"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/inference-final-tests.log",
+      "sha256": "57954c3b70f316bef5b276311a25f051d9ff1faa09cdba881e924eeafff4e92e"
+    },
+    {
+      "path": "tmp/a04-model-quality-20261008/reproduced-policy.log",
+      "sha256": "1bfbdbf28cd9f30aeb51746043f545dda22f984c9ece7a5e0d1176b2983f05e7"
+    }
+  ],
+  "sourceHashes": {
+    "services/inference/app/runtime.py": "205f82d75874f72126cdee910858b18196e74515af8897857f1e00102bdae0ed",
+    "services/inference/app/manifest.py": "796536d4367c7554aba780af5e08fbcb69690e5c12ee76047bc4db421de47954",
+    "services/inference/app/schemas.py": "e5aee71ab566877c7b3a0c7101bf23b08c7c3ca81b212c08793546c4ca24ffbd",
+    "services/inference/tests/test_model_policy.py": "cbb54f0b5de0c48e956917ae3f8013af02d67011618b65dfbf7014d7cc65f220",
+    "config/model.locked.json": "639595e1e9ffe18cb11ead1c7480ffe7a31bf767f6cbaf6b8375829227a569ae",
+    "config/manifests/ecoguard-models-2026-10-07-v2.json": "6947e779fb740f252e35cff6f4ea90f03a87a3fe07d52d1c924bc8319ab1f2a6",
+    "config/calibration/pet-semantic-v3-pairs.json": "238643c500e1500b9a5e2fb7bcaf55a18b5495052da7133bb6baffb8a2936180",
+    "config/calibration/pet-semantic-v3-context.json": "a4e7dd8d5afe8d6159243f1ff1666c78550bc832d5bfb902edecd5004aeffeb1",
+    "scripts/fit_pet_calibration.py": "3ea96064f7bd2d277e51d40bbd793a956d40e633d6c03f1053750ab82572966a"
+  }
+}

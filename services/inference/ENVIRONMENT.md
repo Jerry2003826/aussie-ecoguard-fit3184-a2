@@ -143,7 +143,62 @@ not promoted to feral pig/cane toad. Similarity scores are candidate ranking,
 not identity confirmation. Local contract/security tests and a single model
 smoke must not be described as model acceptance.
 
-## Local evidence on 2026-10-07
+## Current v3 model and bounded semantic evidence (2026-10-08)
+
+The current locked manifest is `config/model.locked.json`, version
+`ecoguard-models-2026-10-08-v3`, SHA-256
+`639595e1e9ffe18cb11ead1c7480ffe7a31bf767f6cbaf6b8375829227a569ae`.
+Its feature identity is
+`siglip2-base-256-animal-crop-v3:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-animal-crop-text64-lowercase-v3`.
+The model artifact bytes and revisions remain unchanged. DINO now proposes
+locations from the fixed prompts; a shared SigLIP2 crop class bank chooses the
+species, including explicit non-animal rejection classes. Independent DINO
+prompt scores are no longer treated as comparable species probabilities.
+Text is explicitly lowercased before fixed 64-token preprocessing, because the
+pinned tokenizer does not apply that training convention itself. Detection
+provenance may now be `grounding-dino+siglip2`.
+
+The immutable `retrievalCalibration` holds separate monotonic image and text
+score transforms, each requiring at least 0.5. Combined retrieval requires both
+modalities to pass for the same crop and ranks by their geometric mean. The
+40 calibration pairs describe breed/species relevance, not individual identity.
+Reproduce the parameters offline without models, pictures or vectors:
+
+```powershell
+python scripts/fit_pet_calibration.py --check
+```
+
+The check requires exact data equality with the manifest. Its committed inputs
+are the sanitized pair summaries and provenance in `config/calibration/`.
+The backend ships the same policy and selects it only for the exact feature
+version. Missing/mismatched v3 policy fails closed. Archived v2 is retained at
+`config/manifests/ecoguard-models-2026-10-07-v2.json`; old queued work needs a
+separately configured v2 service. A v3 service rejects a v2 manifest request.
+Existing v2 features must be reindexed before comparison with v3; there is no
+silent vector conversion or automatic historical reindex.
+
+The sanitized result is [model-quality-v3-20261008.json](evidence/model-quality-v3-20261008.json).
+Four gallery sources and four calibration sources were separated from eight
+previously unseen Oxford test photos before scores were computed. All eight
+held-out photos produced the labeled cat/dog species and a pet feature. The
+production Worker retrieved the labeled breed at rank 1 in 7/8 photo queries
+and 7/8 combined queries. One bulldog remains a miss at the frozen threshold;
+it was not removed from the denominator. The initial four positive text queries
+replayed calibration prompts, so their 4/4 result is not independent text
+holdout evidence. A separately frozen supplementary set of four new phrasings
+scored 4/4, with 0/4 unrelated-text false positives; combined rephrasing stayed
+at 7/8. These small semantic checks do not verify pet identity, all invasive
+species, diverse scenes or production accuracy.
+
+The final model runs used cached real weights and a local SHA-checked image
+transport with an empty Rekognition fixture. They do not establish the mandatory
+live AWS entry-model chain or Oracle deployment. The inference suite passed
+72 cases, including 13 new model-policy cases. Original failures and raw assets
+remain under ignored `tmp/a04-model-quality-20261008/`; images and vectors are
+not committed. The current maximum-video timing is a separate core acceptance
+check and must not be inferred from these single-image timings.
+
+## Historical local evidence on 2026-10-07
 
 `evidence/local-smoke-v2-20261007.json` records a real CPU run using the pinned
 weights, with the two-cat sample linked from
@@ -172,8 +227,9 @@ downloads may exceed the 240-second inference deadline; bounded frame batching
 and full video acceptance remain pending. Do not claim the maximum video size
 has passed. The service security/contract/cleanup suite has 34 passing tests.
 
-Current deployment manifest: `config/model.locked.json`, version
+Historical v2 manifest, now archived at
+`config/manifests/ecoguard-models-2026-10-07-v2.json`, version
 `ecoguard-models-2026-10-07-v2`, exact file SHA-256:
 `6947e779fb740f252e35cff6f4ea90f03a87a3fe07d52d1c924bc8319ab1f2a6`.
-Point `MODEL_MANIFEST_PATH` at this locked file; the Docker default intentionally
+Point `MODEL_MANIFEST_PATH` at the selected locked file; the Docker default intentionally
 points at a failing example until deployment supplies the actual configuration.

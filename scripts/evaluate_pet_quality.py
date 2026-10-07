@@ -43,6 +43,7 @@ from ecoguard_aws.config import Config
 from ecoguard_aws.repository import MemoryRepository, Write
 from ecoguard_aws.service import Service
 from ecoguard_aws.storage import MemoryStorage
+from ecoguard_aws.pet_scoring import CALIBRATED_MANIFEST, calibration
 from ecoguard_aws.workers import Workers
 
 THRESHOLD = 0.2
@@ -391,6 +392,13 @@ def evaluate(manifest_path):
               "bySplit": by_split, "qualityGatesPassed": gates_passed, "gateResults": gate_results,
               "failedQueries": failed_queries, "cases": cases,
               "limits": "Offline precomputed-feature retrieval only. Provenance and human labels are attestations, not independently certified. No model was invoked, no threshold was tuned, and no identity, cloud, deployment or assignment acceptance is inferred."}
+    if manifest["modelManifestVersion"] == CALIBRATED_MANIFEST:
+        policy = calibration()
+        report["scoringPolicy"] = policy
+        report["modalityThresholds"] = {mode: policy[mode]["minimumScore"] for mode in ("image", "text")}
+        report["thresholdMeaning"] = "Outer result filter; each calibrated modality must also pass its frozen 0.5 gate. Scores are semantic candidate scores, not identity probabilities."
+    else:
+        report["scoringPolicy"] = "historical raw cosine; combined arithmetic mean"
     return report, 1 if failed_queries or gates_passed is False else 0
 
 

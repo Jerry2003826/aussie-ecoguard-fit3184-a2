@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import time
 import uuid
@@ -89,27 +90,46 @@ class Service:
         now = iso_time()
         key = f"incoming/library/{upload_id}"
         media = {**meta, "mediaId": media_id, "ownerSub": principal.sub, "visibility": visibility, "status": "UPLOADING", "uploadedAt": now, "observedAt": iso_time(body.get("observedAt")) if body.get("observedAt") else now, "originalKey": key, "jobId": upload_id, "generation": 1, "recordVersion": 1, "autoTags": [], "autoCounts": {}, "manualAdded": [], "manualRemoved": [], "tags": [], "counts": {}, "objectKeys": [key]}
-        operation = {**meta, "operationId": upload_id, "jobId": upload_id, "type": "UPLOAD", "ownerSub": principal.sub, "mediaId": media_id, "sourceKey": key, "status": "UPLOADING", "generation": 1, "attemptId": 0, "createdAt": now, "uploadExpiresAt": int(time.time())+900, "manifestVersion": self.config.model_manifest_version}
+        ttl = self.config.upload_url_seconds
+        operation = {**meta, "operationId": upload_id, "jobId": upload_id, "type": "UPLOAD", "ownerSub": principal.sub, "mediaId": media_id, "sourceKey": key, "status": "UPLOADING", "generation": 1, "attemptId": 0, "createdAt": now, "uploadExpiresAt": int(time.time())+ttl, "manifestVersion": self.config.model_manifest_version}
         try:
             self.repo.transact([Write("media", media), Write("operations", operation), Write("operations", {"operationId": dedup_id, "type": "DEDUP", "mediaId": media_id, "ownerSub": principal.sub})])
         except Conflict:
             # Only a competing content reservation can exist with these fresh IDs.
             return self.create_upload(principal, body)
-        return {"duplicate": False, "uploadId": upload_id, "jobId": upload_id, "mediaId": media_id, **self.storage.sign_upload(key, meta["contentType"], meta["sha256"], meta["sizeBytes"])}
+        return {"duplicate": False, "uploadId": upload_id, "jobId": upload_id, "mediaId": media_id, **self.storage.sign_upload(key, meta["contentType"], meta["sha256"], meta["sizeBytes"], ttl)}
+
+    def _require_live_query(self, op):
+        if op.get("type") == "QUERY" and op.get("cleanupDeadline", float("inf")) <= time.time():
+            raise DomainError("QUERY_EXPIRED", "The query expired. Submit a new query.", 410)
 
     def renew_upload(self, principal, operation_id):
         op = self.operation(operation_id, principal)
+        self._require_live_query(op)
         if op["status"] not in ("UPLOADING", "QUERY_UPLOADING"):
             raise DomainError("UPLOAD_CLOSED", "This upload has already been accepted.", 409)
-        if op.get("cleanupDeadline", float("inf")) <= time.time()+900:
-            raise DomainError("QUERY_EXPIRING", "Create a new query; this temporary query is near its cleanup deadline.", 409)
-        self.repo.transact([Write("operations", dict(op, uploadExpiresAt=int(time.time())+900), op["_rev"])])
-        return {"uploadId": operation_id, **self.storage.sign_upload(op["sourceKey"], op["contentType"], op["sha256"], op["sizeBytes"])}
+        try:
+            self.storage.head(op["sourceKey"])
+        except DomainError as error:
+            if error.code != "OBJECT_NOT_FOUND":
+                raise
+        else:
+            # A response may have been lost after a successful PUT. Verify and
+            # advance that upload before granting permission to overwrite it.
+            return {"uploadId": operation_id, "alreadyUploaded": True, **self.complete_upload(principal, operation_id)}
+        ttl = self.config.upload_url_seconds
+        if op.get("type") == "QUERY":
+            ttl = min(ttl, math.floor(op["cleanupDeadline"] - time.time()))
+        if ttl < 1:
+            raise DomainError("QUERY_EXPIRED", "The query expired. Submit a new query.", 410)
+        self.repo.transact([Write("operations", dict(op, uploadExpiresAt=int(time.time())+ttl), op["_rev"])])
+        return {"uploadId": operation_id, **self.storage.sign_upload(op["sourceKey"], op["contentType"], op["sha256"], op["sizeBytes"], ttl)}
 
     def complete_upload(self, principal, operation_id):
         op = self.operation(operation_id, principal)
         if op["type"] not in ("UPLOAD", "QUERY"):
             raise DomainError("INVALID_TASK", "This is not an upload task.")
+        self._require_live_query(op)
         if op["status"] not in ("UPLOADING", "QUERY_UPLOADING"):
             return self.job_view(op, principal)
         head = self.storage.head(op["sourceKey"])
@@ -133,7 +153,7 @@ class Service:
     def job_view(self, op, principal):
         if op.get("type") == "QUERY" and op.get("resultExpiresAt", float("inf")) <= time.time():
             raise DomainError("QUERY_EXPIRED", "These temporary query results have expired. Submit a new query.", 410)
-        result = {k: op.get(k) for k in ("jobId", "mediaId", "queryId", "status", "error", "stage", "attemptId", "cleaned", "progress", "cleanupStatus") if op.get(k) is not None}
+        result = {k: op.get(k) for k in ("jobId", "mediaId", "queryId", "status", "error", "stage", "attemptId", "cleaned", "progress", "cleanupStatus", "retryable", "cleanupDeadline", "resultExpiresAt") if op.get(k) is not None}
         if op.get("resultIds") is not None:
             result["items"] = []
             for media_id in op["resultIds"]:
@@ -145,7 +165,9 @@ class Service:
                         # Frame references are cleared after query cleanup, so use
                         # retained input metadata to explain the scoring modality.
                         if op.get("description") and op.get("fileType"):
-                            basis = "Image and description similarity, weighted equally for the same detected pet."
+                            basis = ("Image and description similarity; both must match the same detected pet."
+                                     if op.get("manifestVersion") == "ecoguard-models-2026-10-08-v3"
+                                     else "Image and description similarity, weighted equally for the same detected pet.")
                         elif op.get("description"):
                             basis = "Description similarity to a detected pet."
                         else:
@@ -311,13 +333,45 @@ class Service:
                 results.append({"mediaId": media_id, "status": "failed", "error": "The record changed; retry this file."})
         return {"items": results}
 
+    def _deletion_receipt(self, principal, url):
+        # Stable media URLs remain retryable after the underlying media row is
+        # removed. Only the original owner can recover the retained delete job.
+        if not isinstance(url, str) or len(url) > 8192:
+            return None
+        parsed, web = urlparse(url), urlparse(self.config.web_url)
+        path = unquote(parsed.path)
+        if parsed.scheme != web.scheme or parsed.netloc != web.netloc or not re.fullmatch(r"/media/[a-f0-9]{32}", path):
+            return None
+        media_id = path.rsplit("/", 1)[1]
+        media = self.repo.get("media", {"mediaId": media_id})
+        if media and (media["ownerSub"] != principal.sub or media["status"] != "DELETING"):
+            return None
+        for receipt in self.repo.all("operations"):
+            if (receipt.get("type") == "DELETE" and receipt.get("mediaId") == media_id
+                    and receipt.get("ownerSub") == principal.sub
+                    and receipt.get("expiresAt", float("inf")) > time.time()
+                    and (not media or receipt["generation"] == media["generation"])):
+                return receipt
+        return None
+
     def delete_media(self, principal, body):
         urls = body.get("urls")
         if not isinstance(urls, list) or not 1 <= len(urls) <= 10:
             raise DomainError("INVALID_BATCH", "Select between 1 and 10 files.")
-        records = {m["mediaId"]: m for m in (self.resolve_url(principal, u, edit=True) for u in urls)}
+        records = {}
+        for url in urls:
+            receipt = self._deletion_receipt(principal, url)
+            media = None if receipt else self.resolve_url(principal, url, edit=True)
+            records[(receipt or media)["mediaId"]] = (media, receipt)
         results = []
-        for media_id, old in records.items():
+        for media_id, (old, receipt) in records.items():
+            if receipt:
+                status = "DELETED" if receipt["status"] == "DELETED" else ("failed" if receipt["status"] == "FAILED" else "DELETING")
+                result = {"mediaId": media_id, "jobId": receipt["jobId"], "status": status}
+                if status == "failed":
+                    result["error"] = "Some objects could not be deleted. Retry the existing deletion job."
+                results.append(result)
+                continue
             job_id = identifier()
             new = dict(old, status="DELETING", generation=old["generation"]+1, recordVersion=old["recordVersion"]+1)
             op = {"operationId": job_id, "jobId": job_id, "type": "DELETE", "ownerSub": principal.sub, "mediaId": media_id, "status": "QUEUED", "generation": new["generation"], "createdAt": iso_time()}
@@ -351,12 +405,16 @@ class Service:
         if auth.get("sub") != principal.sub or auth.get("requestId") != query_id:
             raise DomainError("CROSS_CLOUD_IDENTITY", "The secondary cloud rejected the query identity.", 403)
         now = datetime.now(timezone.utc)
-        op = {**meta, "operationId": query_id, "queryId": query_id, "jobId": query_id, "type": "QUERY", "queryType": kind, "ownerSub": principal.sub, "description": description, "status": "QUERY_UPLOADING" if has_file else "PREPROCESSED", "generation": 1, "attemptId": 0, "createdAt": iso_time(), "manifestVersion": self.config.model_manifest_version, "from": iso_time(body.get("from") or (now-timedelta(days=30)).isoformat()) if kind == "pet" else (iso_time(body["from"]) if body.get("from") else None), "to": iso_time(body["to"]) if body.get("to") else None, "cleanupDeadline": int(time.time())+3600, "resultExpiresAt": int(time.time())+3600, "cleaned": False}
+        deadline = int(time.time()) + self.config.query_lifetime_seconds
+        op = {**meta, "operationId": query_id, "queryId": query_id, "jobId": query_id, "type": "QUERY", "queryType": kind, "ownerSub": principal.sub, "description": description, "status": "QUERY_UPLOADING" if has_file else "PREPROCESSED", "generation": 1, "attemptId": 0, "createdAt": iso_time(), "manifestVersion": self.config.model_manifest_version, "from": iso_time(body.get("from") or (now-timedelta(days=30)).isoformat()) if kind == "pet" else (iso_time(body["from"]) if body.get("from") else None), "to": iso_time(body["to"]) if body.get("to") else None, "cleanupDeadline": deadline, "resultExpiresAt": deadline, "cleaned": False}
         response = {"queryId": query_id, "jobId": query_id, "status": op["status"]}
         if has_file:
             op["sourceKey"] = f"incoming/query/{query_id}"
-            op["uploadExpiresAt"] = int(time.time())+900
-            response.update(self.storage.sign_upload(op["sourceKey"], meta["contentType"], meta["sha256"], meta["sizeBytes"]))
+            ttl = min(self.config.upload_url_seconds, math.floor(deadline - time.time()))
+            if ttl < 1:
+                raise DomainError("QUERY_EXPIRED", "The query expired. Submit a new query.", 410)
+            op["uploadExpiresAt"] = int(time.time())+ttl
+            response.update(self.storage.sign_upload(op["sourceKey"], meta["contentType"], meta["sha256"], meta["sizeBytes"], ttl))
         writes = [Write("operations", op)]
         if not has_file:
             writes.append(Write("outbox", event("INFER", query_id, 1)))
@@ -374,10 +432,16 @@ class Service:
 
     def retry(self, principal, job_id):
         old = self.operation(job_id, principal)
-        if old["status"] != "FAILED" or old.get("type") == "QUERY":
-            raise DomainError("NOT_RETRYABLE", "Only failed library or deletion tasks can be retried; resubmit a cleaned query.", 409)
-        new = dict(old, status="QUEUED", error=None, attemptId=old.get("attemptId", 0)+1, leaseUntil=0)
+        self._require_live_query(old)
+        if old["status"] != "FAILED" or old.get("leaseUntil", 0) > time.time():
+            raise DomainError("NOT_RETRYABLE", "Only failed tasks without a running attempt can be retried.", 409)
+        if old.get("type") == "QUERY" and (not old.get("retryable") or old.get("cleaned")):
+            raise DomainError("NOT_RETRYABLE", "This query cannot be retried. Submit a new query.", 409)
+        new = dict(old, status="QUEUED", error=None, retryable=False, attemptId=old.get("attemptId", 0)+1, leaseUntil=0)
         kind = "DELETE" if old["type"] == "DELETE" else "INGEST"
+        if old["type"] == "QUERY":
+            kind = "INFER" if old.get("frames") or not old.get("sourceKey") else "INGEST"
+            new.update(status="PREPROCESSED" if kind == "INFER" else "QUERY_QUEUED", cleanupStatus=None)
         writes = [Write("operations", new, old["_rev"]), Write("outbox", event(kind, job_id, old["generation"], event_id=f"{kind}:{job_id}:retry:{new['attemptId']}"))]
         if old["type"] == "UPLOAD":
             media = self.media(old["mediaId"], principal, edit=True)

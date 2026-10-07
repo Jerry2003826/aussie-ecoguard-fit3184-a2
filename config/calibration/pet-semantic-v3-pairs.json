@@ -1,0 +1,246 @@
+{
+  "image": [
+    {
+      "cosine": 0.7975580708367059,
+      "positive": true,
+      "queryId": "train-Abyssinian_193",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.8398199877454879,
+      "positive": false,
+      "queryId": "train-Abyssinian_193",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.762135972869205,
+      "positive": false,
+      "queryId": "train-Siamese_14",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.8651053567576578,
+      "positive": true,
+      "queryId": "train-Siamese_14",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.6945372214045068,
+      "positive": true,
+      "queryId": "train-american_bulldog_124",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.8024847032329887,
+      "positive": false,
+      "queryId": "train-american_bulldog_124",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.6356963973125717,
+      "positive": false,
+      "queryId": "train-beagle_143",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.8583111572688561,
+      "positive": true,
+      "queryId": "train-beagle_143",
+      "targetId": "train-beagle_178"
+    }
+  ],
+  "text": [
+    {
+      "cosine": 0.1644159593817694,
+      "positive": true,
+      "queryText": "a photo of a abyssinian cat",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.0966082594817019,
+      "positive": false,
+      "queryText": "a photo of a abyssinian cat",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": -0.03539506714757134,
+      "positive": false,
+      "queryText": "a photo of a abyssinian cat",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": -0.017280822294585763,
+      "positive": false,
+      "queryText": "a photo of a abyssinian cat",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.10906070999374323,
+      "positive": false,
+      "queryText": "a photo of a siamese cat",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.15120292959233,
+      "positive": true,
+      "queryText": "a photo of a siamese cat",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": -0.0014786515604099256,
+      "positive": false,
+      "queryText": "a photo of a siamese cat",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": -0.0031578491072651567,
+      "positive": false,
+      "queryText": "a photo of a siamese cat",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": -0.028364538677100357,
+      "positive": false,
+      "queryText": "a photo of a american bulldog dog",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.0013757817492231672,
+      "positive": false,
+      "queryText": "a photo of a american bulldog dog",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.14388370113915427,
+      "positive": true,
+      "queryText": "a photo of a american bulldog dog",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.03766171737311406,
+      "positive": false,
+      "queryText": "a photo of a american bulldog dog",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.020181312310362968,
+      "positive": false,
+      "queryText": "a photo of a beagle dog",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.014645215350833872,
+      "positive": false,
+      "queryText": "a photo of a beagle dog",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.05429555858914283,
+      "positive": false,
+      "queryText": "a photo of a beagle dog",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.12643910282936005,
+      "positive": true,
+      "queryText": "a photo of a beagle dog",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.11712357306117285,
+      "positive": true,
+      "queryText": "a photo of a cat",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.11169355931833552,
+      "positive": true,
+      "queryText": "a photo of a cat",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.0482305456516629,
+      "positive": false,
+      "queryText": "a photo of a cat",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.04417240225903732,
+      "positive": false,
+      "queryText": "a photo of a cat",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.06015588218146948,
+      "positive": false,
+      "queryText": "a photo of a dog",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": 0.06300288900099094,
+      "positive": false,
+      "queryText": "a photo of a dog",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.10974113708092925,
+      "positive": true,
+      "queryText": "a photo of a dog",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.1006739982045898,
+      "positive": true,
+      "queryText": "a photo of a dog",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.0006951653297287115,
+      "positive": false,
+      "queryText": "a photo of a red car",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": -0.0019641648448365926,
+      "positive": false,
+      "queryText": "a photo of a red car",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": -0.0072639433729582625,
+      "positive": false,
+      "queryText": "a photo of a red car",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": -0.023150582198610357,
+      "positive": false,
+      "queryText": "a photo of a red car",
+      "targetId": "train-beagle_178"
+    },
+    {
+      "cosine": 0.010834685774367815,
+      "positive": false,
+      "queryText": "a photo of an airplane",
+      "targetId": "train-Abyssinian_125"
+    },
+    {
+      "cosine": -0.0038040947952637624,
+      "positive": false,
+      "queryText": "a photo of an airplane",
+      "targetId": "train-Siamese_167"
+    },
+    {
+      "cosine": 0.017034338585449824,
+      "positive": false,
+      "queryText": "a photo of an airplane",
+      "targetId": "train-american_bulldog_138"
+    },
+    {
+      "cosine": 0.010001415125986988,
+      "positive": false,
+      "queryText": "a photo of an airplane",
+      "targetId": "train-beagle_178"
+    }
+  ]
+}

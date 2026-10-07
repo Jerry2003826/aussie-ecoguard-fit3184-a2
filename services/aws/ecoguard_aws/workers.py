@@ -1,16 +1,21 @@
 from __future__ import annotations
 import json
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import unquote_plus
 
 from ecoguard_domain import DomainError, Principal, can_read, effective_tags
 from ecoguard_domain.rules import normalize_tags, iso_time, parse_time, cosine
 from .repository import Write, Conflict
 from .service import event
+from .pet_scoring import pair_score
 
 INFERENCE_LEASE_SECONDS = 600  # Lambda execution limit is 480 seconds.
 SHORT_WORKER_LEASE_SECONDS = 150  # Ingest/delete Lambdas have a 120-second limit.
+
+
+class WorkerBusy(RuntimeError):
+    """An existing producer must finish before this delivery can be retried."""
 
 
 class Workers:
@@ -21,13 +26,48 @@ class Workers:
 
     def _claim(self, job_id, allowed, state, lease=INFERENCE_LEASE_SECONDS):
         op = self.s.operation(job_id)
+        if self._expire_query(op):
+            return None
         if op["status"] == state and op.get("leaseUntil", 0) > time.time():
-            raise RuntimeError("The task is already leased")
+            raise WorkerBusy("The task is already leased")
         if op["status"] not in allowed and op["status"] != state:
             return None
         new = dict(op, status=state, attemptId=op.get("attemptId", 0)+1, leaseUntil=int(time.time())+lease, stage=state)
         self.repo.transact([Write("operations", new, op["_rev"])])
         return self.s.operation(job_id)
+
+    def _expire_query(self, operation, *, producer_finished=False, clean=True):
+        if operation.get("type") != "QUERY" or operation.get("cleanupDeadline", float("inf")) > time.time():
+            return False
+        current = self.s.operation(operation["operationId"])
+        if current["status"] not in ("FAILED", "CANCELLED", "QUERY_READY", "CLEANED") or (current["status"] == "FAILED" and current.get("retryable")):
+            # Invalidate publication immediately, but keep another live producer's
+            # lease until it is known to have stopped writing temporary objects.
+            finished = producer_finished and current["_rev"] == operation["_rev"]
+            new = dict(current, status="FAILED", generation=current.get("generation", 1)+1,
+                       leaseUntil=0 if finished else current.get("leaseUntil", 0),
+                       error={"code": "QUERY_EXPIRED", "message": "The query exceeded its retention period."},
+                       cleanupStatus="PENDING", retryable=False)
+            try:
+                self.repo.transact([Write("operations", new, current["_rev"])])
+            except Conflict:
+                pass
+        if clean:
+            self.clean_query(operation["operationId"])
+        return True
+
+    def _finish_query_attempt(self, operation):
+        if operation.get("type") != "QUERY":
+            return
+        current = self.s.operation(operation["operationId"])
+        if current["status"] not in ("FAILED", "CANCELLED"):
+            return
+        if current.get("attemptId") == operation.get("attemptId") and current.get("leaseUntil", 0) == operation.get("leaseUntil", 0):
+            try:
+                self.repo.transact([Write("operations", dict(current, leaseUntil=0), current["_rev"])])
+            except Conflict:
+                return
+        self.clean_query(operation["operationId"])
 
     def _failure(self, job_id, error, expected=None):
         op = self.s.operation(job_id)
@@ -35,7 +75,11 @@ class Workers:
             return
         if op["status"] in ("CANCELLED", "CLEANED", "DELETED", "READY", "QUERY_READY"):
             return
-        new = dict(op, status="FAILED", leaseUntil=0, error={"code": error.code, "message": error.message}, cleanupStatus="PENDING" if op["type"] == "QUERY" else None)
+        retryable = error.retryable
+        if op.get("type") == "QUERY" and op.get("cleanupDeadline", 0) <= time.time():
+            error = DomainError("QUERY_EXPIRED", "The query exceeded its retention period.", 410)
+            retryable = False
+        new = dict(op, status="FAILED", leaseUntil=0, retryable=retryable, error={"code": error.code, "message": error.message}, cleanupStatus=("RETAINED_FOR_RETRY" if retryable else "PENDING") if op["type"] == "QUERY" else None)
         writes = [Write("operations", new, op["_rev"])]
         if op.get("mediaId") and op["type"] == "UPLOAD":
             media = self.repo.get("media", {"mediaId": op["mediaId"]})
@@ -50,13 +94,18 @@ class Workers:
 
     def ingest(self, job_id):
         initial = self.s.operation(job_id)
+        if self._expire_query(initial):
+            return
         if initial["status"] in ("UPLOADING", "QUERY_UPLOADING"):
             self.s.complete_upload(Principal(initial["ownerSub"]), job_id)
         op = self._claim(job_id, {"QUEUED", "QUERY_QUEUED"}, "PREPROCESSING", SHORT_WORKER_LEASE_SECONDS)
         if op is None:
             # A signed PUT can still finish after publication or deletion. A late
             # event must reclaim its source bytes without reopening the media.
-            self._clean_upload_source(initial)
+            if initial.get("type") == "QUERY":
+                self.clean_query(job_id)
+            else:
+                self._clean_upload_source(initial)
             return
         try:
             if self.preprocessor is None:
@@ -67,6 +116,8 @@ class Workers:
                 for key in result["objectKeys"]:
                     self.storage.delete(key)
                 return
+            if self._expire_query(op, producer_finished=True):
+                return
             new = dict(op, status="PREPROCESSED", leaseUntil=0, **result)
             writes = [Write("operations", new, op["_rev"]), Write("outbox", event("INFER", job_id, op["generation"], event_id=f"INFER:{job_id}:{op['generation']}:{op['attemptId']}"))]
             if op.get("mediaId"):
@@ -76,21 +127,28 @@ class Workers:
                 writes.append(Write("media", dict(media, status="INFERRING", thumbnailKey=result["thumbnailKey"], objectKeys=list(set(media.get("objectKeys", []) + result["objectKeys"]))), media["_rev"]))
             self.repo.transact(writes)
         except DomainError as error:
-            self._failure(job_id, error)
+            self._failure(job_id, error, expected=op)
+        finally:
+            self._finish_query_attempt(op)
 
     def infer(self, job_id):
         op = self._claim(job_id, {"PREPROCESSED"}, "INFERRING")
         if op is None:
+            if self.s.operation(job_id).get("type") == "QUERY":
+                self.clean_query(job_id)
             return
         artifacts = None
         try:
             # Image and description share one deadline rather than two full budgets.
-            deadline_at = (datetime.now(timezone.utc)+timedelta(seconds=330)).isoformat()
+            deadline = time.time() + self.s.config.inference_request_seconds
+            if op.get("type") == "QUERY":
+                deadline = min(deadline, op["cleanupDeadline"])
+            deadline_at = datetime.fromtimestamp(deadline, timezone.utc).isoformat()
             if op.get("description") and not op.get("frames"):
                 feature = self._description_feature(op, deadline_at)
                 detection = {"features": [feature], "tags": [], "counts": {}, "manifestVersion": op["manifestVersion"]}
             else:
-                frames = [{**{k: v for k, v in frame.items() if k != "key"}, "url": self.storage.sign_read(frame["key"], 900)} for frame in op["frames"]]
+                frames = [{**{k: v for k, v in frame.items() if k != "key"}, "url": self.storage.sign_read(frame["key"], self.s.config.frame_url_seconds)} for frame in op["frames"]]
                 payload = {"jobId": job_id, "ownerSub": op["ownerSub"], "generation": op["generation"], "manifestVersion": op["manifestVersion"], "mediaType": op["fileType"], "frames": frames, "deadlineAt": deadline_at}
                 detection = self.s.inference.infer(payload)
             if detection.get("manifestVersion") != op["manifestVersion"]:
@@ -105,6 +163,8 @@ class Workers:
                 detection["descriptionFeature"] = text_feature
             latest = self.s.operation(job_id)
             if latest["_rev"] != op["_rev"]:
+                return
+            if self._expire_query(op, producer_finished=True):
                 return
             if op["type"] == "QUERY":
                 self._query_result(op, detection)
@@ -141,6 +201,7 @@ class Workers:
         finally:
             if artifacts:
                 self._clean_artifacts(artifacts, producer_finished=True)
+            self._finish_query_attempt(op)
 
     def _clean_artifacts(self, artifacts, *, producer_finished=False):
         current = self.repo.get("operations", {"operationId": artifacts["operationId"]})
@@ -199,6 +260,8 @@ class Workers:
         return {"vector": result["vector"], "featureVersion": result["featureVersion"]}
 
     def _query_result(self, op, detection):
+        if self._expire_query(op, producer_finished=True):
+            return
         principal = Principal(op["ownerSub"])
         scores = {}
         if op["queryType"] == "file":
@@ -213,21 +276,28 @@ class Workers:
             after = parse_time(op["from"]) if op.get("from") else None
             before = parse_time(op["to"]) if op.get("to") else None
             for media in self.s._candidates(principal, public_only=True):
+                if self._expire_query(op, producer_finished=True):
+                    return
                 observed_at = parse_time(media["observedAt"])
                 if (after and observed_at < after) or (before and observed_at > before) or not media.get("featureKey"):
                     continue
                 stored = json.loads(self.storage.read(media["featureKey"], 2*1024**2)).get("features", [])
-                # Both modalities must score the same candidate pet crop. Averaging
-                # prevents a strong photo score from silently overriding the text.
+                # The frozen v3 policy gates each modality on the same pet crop;
+                # a strong image cannot override a contradictory description.
+                mode = "combined" if description_feature else "text" if op.get("description") else "image"
                 def similarity(query, target):
-                    image_score = cosine(query["vector"], target["vector"])
-                    return (image_score + cosine(description_feature["vector"], target["vector"]))/2 if description_feature else image_score
+                    return pair_score(query, target, mode=mode, description=description_feature,
+                                      manifest_version=op.get("manifestVersion", self.s.config.model_manifest_version))
                 score = max((similarity(q, target) for q in query_features for target in stored if q.get("featureVersion") == target.get("featureVersion") and (not q.get("species") or q.get("species") == target.get("species"))), default=-1)
                 if score >= self.s.config.pet_score_threshold:
                     scores[media["mediaId"]] = round(score, 6)
                     items.append(media)
             items.sort(key=lambda m: scores[m["mediaId"]], reverse=True)
             items = items[:10]
+        # Storage reads and candidate scoring consume the original query budget.
+        # Recheck before publication, even if inference itself finished on time.
+        if self._expire_query(op, producer_finished=True):
+            return
         result_ids = [m["mediaId"] for m in items[:100]]
         new = dict(op, status="QUERY_READY", leaseUntil=0, resultIds=result_ids, scores={k: scores[k] for k in result_ids if k in scores}, cleanupStatus="PENDING", completedAt=iso_time())
         self.repo.transact([Write("operations", new, op["_rev"])])
@@ -238,7 +308,9 @@ class Workers:
         if op.get("type") != "QUERY" or op["status"] not in ("QUERY_READY", "FAILED", "CANCELLED", "CLEANED"):
             return False
         # Do not clean an active attempt or transiently failed task: retries still need its bytes.
-        if op.get("leaseUntil", 0) > time.time() and op["status"] == "CANCELLED":
+        if op.get("leaseUntil", 0) > time.time():
+            return False
+        if op["status"] == "FAILED" and op.get("retryable") and op.get("cleanupDeadline", 0) > time.time():
             return False
         keys = set(op.get("objectKeys", []))
         if op.get("sourceKey"):
@@ -247,7 +319,7 @@ class Workers:
         for key in keys:
             self.storage.delete(key)
         latest = self.s.operation(job_id)
-        new = dict(latest, cleaned=True, cleanupStatus="COMPLETED", frames=[], objectKeys=[], expiresAt=latest.get("expiresAt", int(time.time())+86400))
+        new = dict(latest, cleaned=True, cleanupStatus="COMPLETED", frames=[], objectKeys=[], expiresAt=latest.get("expiresAt", int(time.time())+self.s.config.query_receipt_seconds))
         self.repo.transact([Write("operations", new, latest["_rev"])])
         return True
 
@@ -262,7 +334,7 @@ class Workers:
             prior = self.repo.get("operations", {"operationId": media["jobId"]})
             if prior and prior.get("leaseUntil", 0) > time.time():
                 # Wait until a cancelled producer cannot create more objects.
-                raise RuntimeError("Waiting for the previous processing lease to expire")
+                raise WorkerBusy("Waiting for the previous processing lease to expire")
             try:
                 for key in self._deleted_object_keys(media, op["generation"]):
                     self.storage.delete(key)
@@ -366,8 +438,7 @@ class Workers:
                     cleaned += bool(self._clean_artifacts(op))
                 elif op.get("type") == "QUERY":
                     checked += 1
-                    if op.get("cleanupDeadline", float("inf")) <= time.time() and op["status"] not in ("FAILED", "CANCELLED", "QUERY_READY", "CLEANED"):
-                        self._failure(op["operationId"], DomainError("QUERY_EXPIRED", "The query exceeded its retention period."))
+                    self._expire_query(op, clean=False)
                     cleaned += bool(self.clean_query(op["operationId"]))
                 elif op.get("type") == "UPLOAD" and op.get("status") in ("READY", "CANCELLED", "DELETED"):
                     checked += 1

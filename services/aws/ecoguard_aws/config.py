@@ -33,6 +33,21 @@ class Config:
     ffprobe: str = "ffprobe"
     local_inference_url: str = ""
     pet_score_threshold: float = 0.2
+    upload_url_seconds: int = 600
+    query_lifetime_seconds: int = 900
+    inference_request_seconds: int = 330
+    frame_url_seconds: int = 900
+    query_receipt_seconds: int = 86400
+
+    def __post_init__(self):
+        for name in ("upload_url_seconds", "query_lifetime_seconds", "inference_request_seconds", "frame_url_seconds", "query_receipt_seconds"):
+            value = getattr(self, name)
+            if type(value) is not int or not 1 <= value <= 86400:
+                raise ValueError(f"{name} must be an integer between 1 and 86400 seconds")
+        if self.inference_request_seconds > 330:
+            raise ValueError("inference_request_seconds must fit the deployed 330-second model budget")
+        if self.query_receipt_seconds < self.query_lifetime_seconds:
+            raise ValueError("query_receipt_seconds must cover the query lifetime")
 
     @classmethod
     def from_env(cls):
@@ -40,6 +55,9 @@ class Config:
         values["region"] = values.get("region", os.environ.get("AWS_REGION", "us-east-1"))
         if "pet_score_threshold" in values:
             values["pet_score_threshold"] = float(values["pet_score_threshold"])
+        for name in ("upload_url_seconds", "query_lifetime_seconds", "inference_request_seconds", "frame_url_seconds", "query_receipt_seconds"):
+            if name in values:
+                values[name] = int(values[name])
         cfg = cls(**values)
         if cfg.mode not in ("aws", "local"):
             raise ValueError("ECO_MODE must be aws or local")

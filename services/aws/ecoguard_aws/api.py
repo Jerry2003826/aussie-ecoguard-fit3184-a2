@@ -83,7 +83,7 @@ def dispatch(service, principal, method, path, body=None, params=None):
 
 
 def response(status, data=None, error=None, request_id=None):
-    payload = {"error": {"code": error.code, "message": error.message}} if error else {"data": data}
+    payload = {"error": {"code": error.code, "message": error.message, "retryable": error.retryable}} if error else {"data": data}
     payload["requestId"] = request_id or uuid.uuid4().hex
     return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"}, "body": json.dumps(payload, allow_nan=False)}
 
@@ -120,4 +120,4 @@ def handle(event, context, service):
     except Exception as error:
         # Do not serialize exception details: SDK errors and URLs can contain credentials.
         print(json.dumps({"requestId": request_id, "errorType": type(error).__name__, "message": "Backend dependency failed"}))
-        return response(503, error=DomainError("DEPENDENCY_UNAVAILABLE", "A backend service is unavailable. Please retry.", 503), request_id=request_id)
+        return response(503, error=DomainError("DEPENDENCY_UNAVAILABLE", "A backend service is unavailable. Please retry.", 503, retryable=True), request_id=request_id)

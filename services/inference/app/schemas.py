@@ -101,7 +101,7 @@ class Detection(StrictModel):
     species: str
     confidence: float = Field(ge=0, le=1)
     bbox: Box
-    source: Literal["aws-rekognition", "grounding-dino"]
+    source: Literal["aws-rekognition", "grounding-dino", "grounding-dino+siglip2"]
 
 
 class Feature(StrictModel):

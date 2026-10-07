@@ -8,9 +8,10 @@ from typing import Any
 
 
 class DomainError(Exception):
-    def __init__(self, code: str, message: str, status: int = 422):
+    def __init__(self, code: str, message: str, status: int = 422, *, retryable: bool = False):
         super().__init__(message)
         self.code, self.message, self.status = code, message, status
+        self.retryable = retryable
 
 
 @dataclass(frozen=True)

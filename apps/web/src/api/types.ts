@@ -55,6 +55,10 @@ export type Job = {
   tags?: string[];
   result?: { items?: Media[] };
   retryable?: boolean;
+  cleaned?: boolean;
+  // Absolute Unix seconds from the original temporary query; retries retain these.
+  cleanupDeadline?: number;
+  resultExpiresAt?: number;
 };
 export type Access = {
   originalUrl?: string;

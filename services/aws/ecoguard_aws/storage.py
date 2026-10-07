@@ -16,7 +16,8 @@ class MemoryStorage:
     def __init__(self, config):
         self.config, self.objects, self.uploads = config, {}, {}
 
-    def sign_upload(self, key, content_type, sha256, size, expires=900):
+    def sign_upload(self, key, content_type, sha256, size, expires=None):
+        expires = self.config.upload_url_seconds if expires is None else expires
         token = uuid.uuid4().hex
         self.uploads[token] = {"key": key, "contentType": content_type, "sha256": sha256, "size": size, "expires": time.time() + expires}
         return {"uploadUrl": f"{self.config.api_url}/_dev/uploads/{token}", "headers": {"Content-Type": content_type, "x-amz-checksum-sha256": checksum_header(sha256)}, "expiresIn": expires}
@@ -76,7 +77,8 @@ class S3Storage:
         self.client = (session or boto3.Session(region_name=config.region)).client("s3", config=Config(signature_version="s3v4", retries={"max_attempts": 3}))
         self.bucket = config.media_bucket
 
-    def sign_upload(self, key, content_type, sha256, size, expires=900):
+    def sign_upload(self, key, content_type, sha256, size, expires=None):
+        expires = self.config.upload_url_seconds if expires is None else expires
         params = {"Bucket": self.bucket, "Key": key, "ContentType": content_type, "ChecksumSHA256": checksum_header(sha256), "ContentLength": size}
         return {"uploadUrl": self.client.generate_presigned_url("put_object", Params=params, ExpiresIn=expires), "headers": {"Content-Type": content_type, "x-amz-checksum-sha256": checksum_header(sha256)}, "expiresIn": expires}
 

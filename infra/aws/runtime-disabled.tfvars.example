@@ -1,0 +1,5 @@
+# Overlay only. Supply the same existing deployment inputs, including
+# deploy_api=true and the FINAL reviewed Lambda ZIP, before this file.
+# Do not set deploy_api=false or clear worker_image to stop an existing runtime:
+# those inputs control resource existence and can destroy retained configuration.
+runtime_enabled = false

@@ -1,6 +1,16 @@
 # Cloud configuration snapshot — 2026-10-07, amended 2026-10-08
 
-## Latest continuation, 8 October
+## Current runtime pause and core handoff
+
+The [core completion report](core-completion-20261008.md) supersedes the current-status
+claims below: v3, 259 unique checks, 55 local functional checks, bounded semantic
+holdout and a new 120-second video regression. This project's AWS runtime/API/S3
+access is now paused with retained data, and runtime_enabled=false persists in
+its deployment inputs. Storage allowance consumption remains possible.
+Oracle deployment, formal app Lex and individual pet identity acceptance remain open.
+The following continuation is preserved as the earlier failure snapshot.
+
+## Earlier continuation, 8 October
 
 Read the [continuation acceptance report](acceptance-continuation-20261008.md)
 for the current source and quality results. The previous report and snapshot
