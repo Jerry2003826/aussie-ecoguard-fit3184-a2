@@ -1,9 +1,14 @@
 # Deployment and verification
 
-Only AWS course allocation and confirmed existing Google credits may be used.
-The user's extra personal spending limit is A$0. An enabled billing account does
-not establish available credit. Do not deploy GCP until credit amount, expiry and
-service eligibility have been confirmed.
+This runbook follows the four-person implementation plan: C owns infrastructure,
+identity and deployment, A owns core/model logic, B owns UI and client auth, and D
+owns Lex/notifications. The user's extra personal spending limit is A$0. Use only
+course allocation or verified existing credits/free coverage. Personal AWS Free
+Tier was verified FREE/ACTIVE with US$100 credit on 8 October; never upgrade its
+plan automatically. The second compute cloud is an existing Oracle server, still
+to be located and verified. GCP is limited to the existing free IAM/WIF setup.
+Planning and local Toolkit access do not authorize starting the student Lab or
+Oracle resources. Check actual account, region, scope and budget before deployment.
 
 ## Local
 
@@ -20,8 +25,12 @@ Missing real inference, Cognito, SNS and Lex never become simulated success.
 
 ## AWS foundation
 
-Refresh the Learner Lab temporary credentials in the standard AWS credentials
-file. Never paste them into the repository. Run the bucket bootstrap first.
+The student Learner Lab is ended. If a separately authorized deployment needs it,
+resume the Lab and refresh temporary credentials in the standard local credentials
+file. Never paste them into the repository. Reuse the existing foundation and
+review an incremental plan; do not recreate its bucket or tables by default.
+The commands below are deployment steps, not work to execute merely to read the
+four-person plan. Check whether bucket bootstrap is actually needed first.
 
 ```powershell
 .\scripts\bootstrap-aws-bucket.ps1
@@ -53,27 +62,26 @@ password changes using accounts and mailboxes controlled by the team.
 
 ## Cross-cloud inference
 
-After credit confirmation, select a dedicated GCP project; do not repurpose a
-different coursework project without checking its existing resources. Apply
-infra/gcp first without an image to create service identities, WIF, the model
-bucket and Artifact Registry. AWS federation must permit only the exact account
-and execution role. No service-account private key is used.
+Use the existing GCP IAM/WIF identities and public config/google-wif.json.
+AWS federation must allow only the intended account and execution role. Do not
+create a Cloud Run service, GCS model bucket or Artifact Registry for this route.
+If moving any workload to a different AWS account, update and verify the allowed
+identity deliberately; personal CLI login is not an automatic migration.
 
-Create config/google-wif.json using `gcloud iam workload-identity-pools
-create-cred-config` with --aws and the output invoker account. This is a public
-identity configuration, not a credential secret; nevertheless review it before
-committing. Rebuild the AWS zip and worker image to include it. The containers
-must never contain AWS keys or a GCP private key.
+Follow infra/oracle/README.md for the existing-host preflight, locked model cache,
+container configuration, loopback binding and existing HTTPS proxy. At present no
+running target host has been confirmed; keep cloud deployment blocked until it
+exists within the budget. Do not start paid OKE nodes or create a replacement VM.
+The current template supports linux/amd64; an ARM host requires compatible locks,
+image and real model verification first. Preserve existing websites and services.
 
-Build `services/inference/Dockerfile` with the repository as context. Use the
-actual locked manifest and its SHA-256; update the hash if any byte changes.
-Publish immutable image digests, set GCP image and Cognito/S3 configuration, and
-apply the protected Cloud Run service. Keep max instances 1, min 0, concurrency
-1, timeout 360 seconds and model deadline 240 seconds initially. Confirm both
-unsigned and wrong-identity requests fail. `/v1/query-authorizations` also
-validates the forwarded Cognito token and must complete within 8 seconds without
-loading model weights. Warm up explicitly and measure CPU latency before routing
-uploads. Real benchmark data is required for species/count/pet accuracy claims.
+Oracle application code must fully verify Google service ID-token signatures,
+issuer, audience, expiry and the permitted identity, independently from Cognito
+user access-token verification. `/v1/query-authorizations` verifies the forwarded
+user and must meet its bounded request budget without loading model weights.
+Validate allowed and rejected identities over real HTTPS. Fix all model/manifest
+hashes and record cold/warm latency, memory and maximum-video behavior before
+routing uploads; local success is not a dual-cloud acceptance result.
 
 Build `services/aws/Dockerfile` for linux/amd64 and push to the output ECR
 repository, recording its digest. If local Docker remains unavailable, use a
@@ -88,14 +96,16 @@ the actual deployment, not fixtures.
 
 ## Lex and release
 
-Lex remains a required dependency. See lex-permission-request.md for the confirmed
-Learner Lab denial and prepared teaching-team question. Once permission is
-available, create a bot role trusted by Lex, deploy intents and restricted Lambda
+Lex remains a required dependency. The personal account passed a real temporary
+create/build/publish/text-runtime probe, and the probe resources were cleaned up;
+see lex-resolution.md. The course account denial remains unchanged. C/D must
+verify the intended account, runtime caller, region and fulfillment path before
+formal deployment. Create a bot role trusted by Lex, deploy intents and restricted Lambda
 code-hook permission, then configure lex_bot_id/lex_alias_id and verify a real
 conversation. A local fallback does not establish Lex acceptance.
 
 Host the built frontend over HTTPS and put its exact origin in frontend_origins
 and web_url. Record live endpoint, immutable image/manifest versions, model
 benchmarks, complete demo evidence and actual team contributions before the
-report is finalized. Preserve the deployment through all Week 15 assessments.
+report is finalized. Keep an authorized, budget-compatible runtime plan for all Week 15 assessments.
 Do not run terraform destroy during marking.

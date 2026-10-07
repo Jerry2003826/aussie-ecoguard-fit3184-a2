@@ -1,4 +1,19 @@
-# Cloud configuration snapshot — 2026-10-07
+# Cloud configuration snapshot — 2026-10-07, amended 2026-10-08
+
+The historical deployment details below are retained. On 8 October the student
+Lab was verified ended (Terminated / 00:00). OCI DEFAULT API configuration was
+repaired and verified; the accessible Oracle configuration had no running VM and
+the OKE node pool had size 0. No server was started. The four-person implementation
+plan assigns environment/deployment work to C and Lex/notification work to D.
+
+Personal AWS profile ecoguard-personal belongs to account 011154879765, defaults
+to ap-southeast-2, and is separate from course resources. Lex ListBots succeeded
+in Sydney and us-east-1. Free Tier is FREE/ACTIVE, with US$100 remaining credit
+and plan expiry on 7 April 2027 at the time of the check. A temporary Sydney bot
+was created, built, published and successfully invoked once, then its bot/alias
+and role were deleted and verified absent. Results and limits are recorded in
+lex-resolution.md. This does not migrate
+the course deployment or complete application acceptance.
 
 User instruction: configure cloud environments, then stop; user will try Lex manually.
 Latest provider selection: AWS course allocation + existing Oracle server. Extra
@@ -25,7 +40,8 @@ update await fresh course credentials.
 
 At about 23:24 Sydney the Learner Lab applied voc-cancel-cred and management calls
 began failing. This is session expiry, separate from the persistent Lex denial.
-Restart Lab and update the local AWS credentials file before continuing. Do not
+The Lab is now ended. Only resume it when separately authorized and needed for
+deployment; then refresh the local AWS credentials before continuing. Do not
 put temporary credentials into this project, Terraform variables or screenshots.
 
 ## Free workload identity configured
@@ -43,7 +59,8 @@ put temporary credentials into this project, Terraform variables or screenshots.
 
 The locally configured SMARTPARK tenancy in ap-melbourne-1 returned only a terminated
 OKE node; no independent running server was found in that profile. DEFAULT OCI
-session is expired. No Oracle resource has been created, restarted, resized or
+API-key access was repaired on 8 October; this does not create a runtime server.
+No Oracle resource has been created, restarted, resized or
 changed. Waiting for the actual intended server's address, SSH username and key
 path (or clarification that the OKE cluster is intended).
 

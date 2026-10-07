@@ -1,7 +1,8 @@
 # Aussie EcoGuard — FIT3184 A2
 
 澳大利亚动物目击管理、物种与数量检索、照片／文字寻宠、邮件订阅和 Lex
-助手。用户当前要求先完成云环境配置，再停止扩展开发。
+助手。项目已按四人分工安排后续接管、实施与验收，你负责核心业务与 AI
+检索；[详细任务、交接与排期](docs/product-and-implementation-plan.md)。
 
 ## 当前环境
 
@@ -15,7 +16,8 @@ AWS us-east-1 已实际创建 Cognito、私有 S3、5 张 DynamoDB 表、4 个 S
 
 实际检查已验证匿名 401、临时密码强制修改、access token 可访问、ID token
 不可访问；测试用户已删除，未发送邮件。CORS preflight 修复已写入代码，
-尚需在重新启动到期 Learner Lab 后应用并复验。课程会话到期后
+尚需在另行安排并获准恢复 Learner Lab 后应用并复验。当前 Lab 已结束。
+课程会话到期后
 `voc-cancel-cred` 禁止更新；STS 能返回身份不代表会话仍允许管理资源。
 
 第二计算云已按用户最新选择改为**现有甲骨文服务器**。Oracle HTTPS
@@ -28,8 +30,10 @@ Oracle 验证其签名、issuer、audience 和固定服务账号，并对查询�
 Cognito access token。[IAM 官方价格](https://cloud.google.com/iam/pricing)。
 
 **额外自费上限为 A$0**。不创建新的 Oracle VM/负载均衡，不启用 Google
-计算服务。AWS 使用课程额度。Lex 在当前账号仍被拒绝；手动控制台也受
-同一 IAM 约束，需已有可用账号或教学团队开放权限。
+计算服务。AWS 主要使用课程额度。课程账号的 Lex 仍受限；个人 AWS
+账号已完成临时 Lex Bot 的创建、构建、发布和一次真实文字对话，测试资源
+已清理；免费计划及 US$100 赠金已核实。正式查询接线尚未验收，见
+[Lex 验证记录](docs/lex-resolution.md)。
 
 ## 手动 Lex
 
@@ -81,7 +85,7 @@ apps/web/.env.local 中明确设置 `VITE_DEV_MODE=true`，而且只能在 loopb
 仍须实际部署后验证。12 帧冷启动可能超过当前 240 秒推理预算；照片和文字
 同时输入的融合检索尚未验收。不能将已有本地测试视作作业全部完成。
 
-[原产品与实施计划](docs/product-and-implementation-plan.md) ·
+[四人产品实施与验收计划](docs/product-and-implementation-plan.md) ·
 [部署流程](docs/deployment-runbook.md) ·
 [云环境状态](docs/cloud-environment-status.md)
 
