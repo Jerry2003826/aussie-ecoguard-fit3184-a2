@@ -1,0 +1,59 @@
+---
+description: AWS guidance for Aussie EcoGuard
+alwaysApply: true
+---
+
+# Aussie EcoGuard project instructions
+
+- This repository implements the FIT3184 assignment. Read README.md and the
+  relevant deployment documentation before changing a component.
+- The current authorized scope is local cloud access and Agent Toolkit setup.
+  Further project deployment is paused until the user requests it. Do not restart
+  the student Learner Lab or run tutorial deployment examples as part of setup.
+- The additional out-of-pocket budget is A$0. Do not enable billable cloud
+  resources, start stopped servers, or upgrade account billing plans unless the
+  user explicitly changes this constraint. Existing course credit and verified
+  existing cloud allowances are the only authorized funding sources.
+- Use the named ecoguard-personal profile for this personal-account Toolkit
+  installation. Its default region is ap-southeast-2; Toolkit catalog and MCP
+  endpoint use us-east-1. Keep the student default profile separate. Verify the
+  selected profile, account, and operation region before cloud actions.
+- Keep existing Terraform infrastructure in infra/aws and infra/gcp. Prefer
+  changes to those definitions rather than rewriting the deployment in another
+  framework. Oracle deployment templates target an existing server.
+- Keep login caches, keys, tokens, .env files, and Terraform state outside Git.
+  Do not print secret values or copy them into documentation or tool output.
+- Distinguish local checks, real cloud connectivity, and full assignment
+  acceptance. A successful identity query or MCP initialization alone does not
+  establish deployment or complete the assignment.
+
+<!-- BEGIN AWS Agent Toolkit rules -->
+# AWS Guidance
+
+- Where these AWS rules conflict with the project's own instructions, the
+  project's instructions take precedence.
+- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed
+  execution, observability, and audit logging. If unavailable, use the
+  AWS CLI directly.
+- Before starting a task, check whether a relevant AWS skill is available.
+  Load the skill with `retrieve_skill` and prefer its guidance over
+  general knowledge.
+- When uncertain about specific AWS details (API parameters, permissions,
+  limits, error codes), verify against documentation rather than guessing.
+  State uncertainty explicitly if you cannot confirm.
+- When creating infrastructure, prefer infrastructure-as-code (AWS CDK or
+  CloudFormation) over direct CLI commands.
+- When working with infrastructure, follow AWS Well-Architected Framework
+  principles.
+- Do not use em dashes in AWS resource names or descriptions. Use
+  hyphens instead.
+
+## Secret Safety
+
+- MUST load the `aws-secrets-manager` skill first for any secret,
+  credential, API key, token, or password task. MUST NOT call
+  `secretsmanager get-secret-value` or `batch-get-secret-value`, and MUST
+  NOT hit the Secrets Manager Agent daemon directly. MUST use
+  `{{resolve:secretsmanager:secret-id:SecretString:json-key}}` with
+  `asm-exec` so the secret resolves at runtime without entering context.
+<!-- END AWS Agent Toolkit rules -->

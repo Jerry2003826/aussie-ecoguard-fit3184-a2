@@ -84,3 +84,7 @@ apps/web/.env.local 中明确设置 `VITE_DEV_MODE=true`，而且只能在 loopb
 [原产品与实施计划](docs/product-and-implementation-plan.md) ·
 [部署流程](docs/deployment-runbook.md) ·
 [云环境状态](docs/cloud-environment-status.md)
+
+个人 AWS 账号的 CLI 登录、24 个 AWS 技能和 AWS MCP 已在本机配置并验证。
+[Agent Toolkit 配置记录](docs/aws-agent-toolkit-setup.md) 包含 profile、区域、
+启动方式和实际验证范围。
