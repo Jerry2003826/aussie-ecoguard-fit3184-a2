@@ -1,0 +1,76 @@
+export type Media = {
+  mediaId: string;
+  filename?: string;
+  fileName?: string;
+  fileType: string;
+  status: string;
+  visibility: string;
+  tags: string[];
+  counts?: Record<string, number>;
+  thumbnailUrl?: string;
+  originalUrl?: string;
+  url?: string;
+  observedAt?: string;
+  createdAt?: string;
+  uploadedAt?: string;
+  modelVersion?: string;
+  classification?: string;
+  error?: { message?: string };
+  score?: number;
+  reasons?: string[];
+  ownerSub?: string;
+  canEdit?: boolean;
+  recordVersion?: number;
+  jobId?: string;
+};
+export type MediaList = { items: Media[]; nextCursor?: string | null };
+export type UploadAuthorization = {
+  uploadId?: string;
+  queryId?: string;
+  jobId?: string;
+  mediaId?: string;
+  uploadUrl?: string;
+  uploadMethod?: string;
+  headers?: Record<string, string>;
+  uploadHeaders?: Record<string, string>;
+  duplicate?: boolean;
+  status?: string;
+  media?: Media;
+};
+export type Job = {
+  jobId?: string;
+  queryId?: string;
+  status: string;
+  stage?: string;
+  progress?: number;
+  message?: string;
+  error?: { message?: string; code?: string };
+  results?: Media[] | MediaList;
+  items?: Media[];
+  cleanupStatus?: string;
+  species?: string[];
+  tags?: string[];
+  result?: { items?: Media[] };
+  retryable?: boolean;
+};
+export type Access = {
+  originalUrl?: string;
+  thumbnailUrl?: string;
+  url?: string;
+  expiresAt?: string;
+};
+export type Subscription = {
+  subscriptionId: string;
+  tags: string[];
+  status?: string;
+  confirmationStatus?: string;
+  enabled?: boolean;
+  email?: string;
+};
+export type ChatResponse = {
+  sessionId?: string;
+  messages?: (string | { content?: string; contentType?: string })[];
+  results?: Media[];
+  cards?: Media[];
+  items?: Media[];
+};

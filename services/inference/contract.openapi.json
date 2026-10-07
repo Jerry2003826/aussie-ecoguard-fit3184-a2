@@ -1,0 +1,794 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Aussie EcoGuard private inference",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Ready",
+        "operationId": "ready_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/query-authorizations": {
+      "post": {
+        "summary": "Query Authorizations",
+        "operationId": "query_authorizations_v1_query_authorizations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryAuthorization"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/infer": {
+      "post": {
+        "summary": "Infer",
+        "operationId": "infer_v1_infer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embed": {
+      "post": {
+        "summary": "Embed",
+        "operationId": "embed_v1_embed_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/warmup": {
+      "post": {
+        "summary": "Warmup",
+        "operationId": "warmup_v1_warmup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Box": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          },
+          "width": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Height"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "Box"
+      },
+      "Detection": {
+        "properties": {
+          "species": {
+            "type": "string",
+            "title": "Species"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "bbox": {
+            "$ref": "#/components/schemas/Box"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "aws-rekognition",
+              "grounding-dino"
+            ],
+            "title": "Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "species",
+          "confidence",
+          "bbox",
+          "source"
+        ],
+        "title": "Detection"
+      },
+      "EmbedRequest": {
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "1",
+            "title": "Schemaversion",
+            "default": "1"
+          },
+          "jobId": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Jobid"
+          },
+          "manifestVersion": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Manifestversion"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "deadlineAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadlineat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "jobId",
+          "manifestVersion",
+          "text"
+        ],
+        "title": "EmbedRequest"
+      },
+      "EmbedResponse": {
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "1",
+            "title": "Schemaversion",
+            "default": "1"
+          },
+          "vector": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4096,
+            "minItems": 1,
+            "title": "Vector"
+          },
+          "featureVersion": {
+            "type": "string",
+            "title": "Featureversion"
+          },
+          "manifestVersion": {
+            "type": "string",
+            "title": "Manifestversion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "vector",
+          "featureVersion",
+          "manifestVersion"
+        ],
+        "title": "EmbedResponse"
+      },
+      "EntryBox": {
+        "properties": {
+          "Width": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Width"
+          },
+          "Height": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Height"
+          },
+          "Left": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Left"
+          },
+          "Top": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Top"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "Width",
+          "Height",
+          "Left",
+          "Top"
+        ],
+        "title": "EntryBox"
+      },
+      "EntryInstance": {
+        "properties": {
+          "BoundingBox": {
+            "$ref": "#/components/schemas/EntryBox"
+          },
+          "Confidence": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "BoundingBox",
+          "Confidence"
+        ],
+        "title": "EntryInstance"
+      },
+      "EntryLabel": {
+        "properties": {
+          "Name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "Confidence": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "Instances": {
+            "items": {
+              "$ref": "#/components/schemas/EntryInstance"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Instances"
+          }
+        },
+        "type": "object",
+        "required": [
+          "Name",
+          "Confidence"
+        ],
+        "title": "EntryLabel"
+      },
+      "Feature": {
+        "properties": {
+          "species": {
+            "type": "string",
+            "enum": [
+              "cat",
+              "dog"
+            ],
+            "title": "Species"
+          },
+          "vector": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 4096,
+            "minItems": 1,
+            "title": "Vector"
+          },
+          "featureVersion": {
+            "type": "string",
+            "title": "Featureversion"
+          },
+          "frameId": {
+            "type": "string",
+            "title": "Frameid"
+          },
+          "bbox": {
+            "$ref": "#/components/schemas/Box"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "species",
+          "vector",
+          "featureVersion",
+          "frameId",
+          "bbox"
+        ],
+        "title": "Feature"
+      },
+      "Frame": {
+        "properties": {
+          "frameId": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Frameid"
+          },
+          "timestampSeconds": {
+            "type": "number",
+            "exclusiveMaximum": 120.0,
+            "minimum": 0.0,
+            "title": "Timestampseconds"
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 8192,
+            "minLength": 12,
+            "title": "Url"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Sha256"
+          },
+          "entryLabels": {
+            "items": {
+              "$ref": "#/components/schemas/EntryLabel"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Entrylabels"
+          },
+          "entryModelVersion": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entrymodelversion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "frameId",
+          "timestampSeconds",
+          "url",
+          "sha256",
+          "entryLabels"
+        ],
+        "title": "Frame"
+      },
+      "FrameResult": {
+        "properties": {
+          "frameId": {
+            "type": "string",
+            "title": "Frameid"
+          },
+          "timestampSeconds": {
+            "type": "number",
+            "title": "Timestampseconds"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "detections": {
+            "items": {
+              "$ref": "#/components/schemas/Detection"
+            },
+            "type": "array",
+            "title": "Detections"
+          },
+          "entryModelVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entrymodelversion"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "frameId",
+          "timestampSeconds",
+          "counts",
+          "detections"
+        ],
+        "title": "FrameResult"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InferRequest": {
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "1",
+            "title": "Schemaversion",
+            "default": "1"
+          },
+          "jobId": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Jobid"
+          },
+          "ownerSub": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Ownersub"
+          },
+          "generation": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Generation"
+          },
+          "manifestVersion": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Manifestversion"
+          },
+          "mediaType": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ],
+            "title": "Mediatype"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/Frame"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Frames"
+          },
+          "deadlineAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadlineat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "jobId",
+          "ownerSub",
+          "generation",
+          "manifestVersion",
+          "mediaType",
+          "frames"
+        ],
+        "title": "InferRequest"
+      },
+      "InferResponse": {
+        "properties": {
+          "schemaVersion": {
+            "type": "string",
+            "const": "1",
+            "title": "Schemaversion",
+            "default": "1"
+          },
+          "jobId": {
+            "type": "string",
+            "title": "Jobid"
+          },
+          "manifestVersion": {
+            "type": "string",
+            "title": "Manifestversion"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/FrameResult"
+            },
+            "type": "array",
+            "title": "Frames"
+          },
+          "features": {
+            "items": {
+              "$ref": "#/components/schemas/Feature"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "pet",
+              "invasive",
+              "mixed",
+              "uncertain"
+            ],
+            "title": "Classification"
+          },
+          "featureVersion": {
+            "type": "string",
+            "title": "Featureversion"
+          },
+          "truncatedFeatures": {
+            "type": "boolean",
+            "title": "Truncatedfeatures",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "jobId",
+          "manifestVersion",
+          "counts",
+          "tags",
+          "frames",
+          "features",
+          "classification",
+          "featureVersion"
+        ],
+        "title": "InferResponse"
+      },
+      "QueryAuthorization": {
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:@-]+$",
+            "title": "Requestid"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "file",
+              "pet"
+            ],
+            "title": "Purpose"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "requestId",
+          "purpose"
+        ],
+        "title": "QueryAuthorization"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

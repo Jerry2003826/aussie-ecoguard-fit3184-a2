@@ -1,0 +1,4 @@
+*.local.env
+compose.env
+inference.env
+__pycache__/

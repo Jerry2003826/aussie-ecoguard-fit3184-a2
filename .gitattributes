@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.pdf -text
+*.png -text
+*.jpg -text
+# Runtime manifest integrity is byte-sensitive; preserve those exact bytes.
+/config/model*.json -text
+/config/taxonomy.json -text

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ecoguard-inference"
+version = "0.1.0"
+description = "Private Cloud Run inference and cross-cloud Cognito authorization"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn>=0.34,<1", "httpx>=0.28,<1",
+  "pydantic>=2.10,<3", "PyJWT[crypto]>=2.10,<3", "Pillow>=11.1,<13",
+  "google-cloud-storage>=3,<4",
+]
+
+[project.optional-dependencies]
+models = ["torch>=2.6,<3", "transformers>=4.51.3,<5", "safetensors>=0.5,<1", "sentencepiece>=0.2,<1"]
+test = ["pytest>=8.3,<10", "pytest-asyncio>=0.25,<2", "psutil>=7,<8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

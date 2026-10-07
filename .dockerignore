@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.terraform
+**/*.tfstate*
+**/*.tfplan
+**/.env
+**/.env.*
+models
+build
+tmp
+apps/web/output
+**/evidence
+*.pdf

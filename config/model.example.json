@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1",
+  "manifestVersion": "ecoguard-models-2026-10-07-v2",
+  "status": "unlocked",
+  "entryModel": "aws-rekognition",
+  "preprocessingVersion": "rgb-exif-crop-text64-v2",
+  "taxonomyVersion": "taxonomy-2026-10-07-v1",
+  "taxonomySha256": "REPLACE_WITH_TAXONOMY_SHA256",
+  "fallbackManifestVersion": null,
+  "detector": {
+    "adapter": "grounding-dino",
+    "modelId": "IDEA-Research/grounding-dino-tiny",
+    "revision": "REPLACE_WITH_IMMUTABLE_40_HEX_COMMIT",
+    "license": "Apache-2.0",
+    "modelCard": "https://huggingface.co/IDEA-Research/grounding-dino-tiny",
+    "files": [],
+    "promptStrategy": "per_species",
+    "imageSize": {"shortest_edge": 640, "longest_edge": 1024},
+    "boxThreshold": 0.35,
+    "textThreshold": 0.3,
+    "nmsIou": 0.5
+  },
+  "embedding": {
+    "adapter": "siglip2",
+    "modelId": "google/siglip2-base-patch16-256",
+    "revision": "REPLACE_WITH_IMMUTABLE_40_HEX_COMMIT",
+    "license": "Apache-2.0",
+    "modelCard": "https://huggingface.co/google/siglip2-base-patch16-256",
+    "featureVersion": "siglip2-base-256-rgb-crop-v1",
+    "files": []
+  },
+  "notes": "Fail-closed example. Run tools/lock_manifest.py to pin actual revisions and each artifact SHA-256 before deployment. No weights have been downloaded or benchmarked."
+}

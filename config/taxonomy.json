@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1",
+  "version": "taxonomy-2026-10-07-v1",
+  "species": {
+    "cat": {"displayName": "Cat", "aliases": ["cat", "cats", "domestic cat"], "category": "pet", "prompts": ["cat"]},
+    "dog": {"displayName": "Dog", "aliases": ["dog", "dogs", "domestic dog"], "category": "pet", "prompts": ["dog"]},
+    "fox": {"displayName": "Fox", "aliases": ["fox", "foxes", "red fox"], "category": "invasive", "prompts": ["red fox", "fox"]},
+    "feral_pig": {"displayName": "Feral pig", "aliases": ["feral pig", "feral pigs", "wild boar", "wild pig"], "category": "invasive", "prompts": ["wild boar", "feral pig"]},
+    "cane_toad": {"displayName": "Cane toad", "aliases": ["cane toad", "cane toads", "rhinella marina"], "category": "invasive", "prompts": ["cane toad"]},
+    "pig": {"displayName": "Pig (unspecified)", "aliases": ["pig", "pigs", "hog"], "category": "uncertain", "prompts": ["pig"]},
+    "toad": {"displayName": "Toad (unspecified)", "aliases": ["toad", "toads"], "category": "uncertain", "prompts": ["toad"]}
+  },
+  "overlapFamilies": [["feral_pig", "pig"], ["cane_toad", "toad"]],
+  "notes": "Generic pig/toad are never promoted to feral pig/cane toad. Species precision and count accuracy remain unverified until the annotated benchmark passes."
+}

@@ -1,0 +1,13 @@
+{
+  "kind": "real-aws-cloud-configuration-check",
+  "emailVerificationTested": false,
+  "emailsSent": 0,
+  "checks": {
+    "anonymousRejected": true,
+    "temporaryPasswordRequiresChange": true,
+    "accessTokenAccepted": true,
+    "idTokenRejected": true,
+    "configuredCorsAllowed": false,
+    "testUserDeleted": true
+  }
+}

@@ -1,0 +1,20 @@
+[Unit]
+Description=Aussie EcoGuard private inference on existing Oracle host
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ecoguard/oracle
+ExecStartPre=/usr/bin/python3 /opt/ecoguard/oracle/validate-config.py --env /etc/ecoguard/inference.env --manifest /opt/ecoguard/config/model.locked.json --taxonomy /opt/ecoguard/config/taxonomy.json --cache /var/lib/ecoguard/models
+ExecStartPre=/usr/bin/docker compose --env-file /etc/ecoguard/compose.env -f /opt/ecoguard/oracle/compose.yaml config --quiet
+ExecStart=/usr/bin/docker compose --env-file /etc/ecoguard/compose.env -f /opt/ecoguard/oracle/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --env-file /etc/ecoguard/compose.env -f /opt/ecoguard/oracle/compose.yaml stop --timeout 60
+TimeoutStartSec=300
+TimeoutStopSec=90
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

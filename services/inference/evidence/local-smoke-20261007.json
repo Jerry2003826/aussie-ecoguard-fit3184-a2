@@ -1,0 +1,103 @@
+{
+  "kind": "local-real-model-smoke",
+  "createdAt": "2026-10-07T12:00:55.198582+00:00",
+  "manifestSha256": "6eab1de7d297892426f569c9611e0f9740d55322a03a07271b4c9aa8b1f0797e",
+  "manifestVersion": "ecoguard-models-2026-10-07-v1",
+  "imageSha256": "cf6f3c4befa148732c7453e0de5afab00f682427435fead2d88b07a9615cdac2",
+  "cloudValidated": false,
+  "accuracyBenchmarkPassed": false,
+  "stages": [
+    {
+      "name": "load-detector",
+      "seconds": 37.11,
+      "rssBytes": 373272576,
+      "peakRssBytes": 373276672
+    },
+    {
+      "name": "load-embedding",
+      "seconds": 60.015,
+      "rssBytes": 428228608,
+      "peakRssBytes": 491397120
+    },
+    {
+      "name": "detect-image",
+      "seconds": 4.282,
+      "rssBytes": 1359376384,
+      "peakRssBytes": 2391146496
+    },
+    {
+      "name": "embed-image",
+      "seconds": 0.156,
+      "rssBytes": 1732513792,
+      "peakRssBytes": 2391146496
+    },
+    {
+      "name": "embed-text",
+      "seconds": 0.062,
+      "rssBytes": 2074701824,
+      "peakRssBytes": 2391146496
+    },
+    {
+      "name": "embed-text",
+      "seconds": 0.016,
+      "rssBytes": 1796403200,
+      "peakRssBytes": 2391146496
+    }
+  ],
+  "detections": [
+    {
+      "species": "fox",
+      "confidence": 0.4127577841281891,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.016325518488883972,
+        "y": 0.10973698298136393,
+        "width": 0.4782716304063797,
+        "height": 0.8762209256490072
+      }
+    },
+    {
+      "species": "cat",
+      "confidence": 0.37568894028663635,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.015831708908081055,
+        "y": 0.048465816179911296,
+        "width": 0.9787399768829346,
+        "height": 0.9338398377100626
+      }
+    }
+  ],
+  "retrieval": [
+    {
+      "text": "a photo of two cats on a couch",
+      "cosine": -0.01997823373540681,
+      "dimensions": 768,
+      "vectorNorm": 0.9999999999999999
+    },
+    {
+      "text": "a photo of a red car on a road",
+      "cosine": -0.04293331868665212,
+      "dimensions": 768,
+      "vectorNorm": 1.0
+    }
+  ],
+  "imageVectorDimensions": 768,
+  "featureVersion": "siglip2-base-256-rgb-crop-v1:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-crop-v1",
+  "models": {
+    "manifestVersion": "ecoguard-models-2026-10-07-v1",
+    "loadedModels": [
+      "detector",
+      "embedding"
+    ],
+    "featureVersion": "siglip2-base-256-rgb-crop-v1:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-crop-v1",
+    "ready": true
+  },
+  "packages": {
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "safetensors": "0.8.0",
+    "Pillow": "12.3.0"
+  },
+  "status": "smoke-completed"
+}

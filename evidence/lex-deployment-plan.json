@@ -1,0 +1,68 @@
+{
+  "mode": "plan",
+  "awsCalls": 0,
+  "region": "us-east-1",
+  "botName": "ecoguard-assistant",
+  "existingBotId": null,
+  "roleArn": "arn:aws:iam::360493183467:role/EcoGuardLexRole",
+  "fulfillmentArn": "arn:aws:lambda:us-east-1:360493183467:function:ecoguard3184-dev-lex_fulfillment",
+  "localeId": "en_US",
+  "aliasName": "live",
+  "intents": {
+    "SearchAnimals": {
+      "utterances": [
+        "show me {species}",
+        "find {species}",
+        "show me {count} {species}",
+        "show me {species} from {date}",
+        "show me {count} {species} from {date}",
+        "search for {color} {species}"
+      ],
+      "slots": [
+        "species (required)",
+        "count (optional)",
+        "color (optional)",
+        "date (optional)"
+      ]
+    },
+    "FindPet": {
+      "utterances": [
+        "find my {species}",
+        "find my {color} {species}",
+        "I lost my {species}",
+        "I lost a {color} {species}",
+        "find my {species} seen {date}",
+        "find my {color} {species} seen {date}"
+      ],
+      "slots": [
+        "species (required)",
+        "count (optional)",
+        "color (optional)",
+        "date (optional)"
+      ]
+    },
+    "HelpIntent": {
+      "utterances": [
+        "help",
+        "what can you do",
+        "how do I search for animals"
+      ],
+      "slots": []
+    },
+    "FallbackIntent": {
+      "utterances": [],
+      "slots": []
+    }
+  },
+  "steps": [
+    "Read caller identity, existing role trust and Lambda",
+    "Create or reconcile the managed bot's DRAFT locale, slot types and intents",
+    "Build locale and wait for Built",
+    "Publish immutable bot version and wait for Available",
+    "Create/update alias with fulfillment Lambda",
+    "Add an alias-scoped Lambda resource-policy permission and wait for alias Available",
+    "Return ECO_LEX_BOT_ID, ECO_LEX_ALIAS_ID and ECO_LEX_LOCALE for infrastructure configuration"
+  ],
+  "iamChanges": false,
+  "note": "Requires explicit --apply. Does not change Lambda environment, IAM roles/trust, or teaching-account permissions. Lex live acceptance remains a separate authenticated application test."
+}

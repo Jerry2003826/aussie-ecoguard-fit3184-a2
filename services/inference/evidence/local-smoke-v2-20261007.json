@@ -1,0 +1,185 @@
+{
+  "kind": "local-real-model-smoke",
+  "createdAt": "2026-10-07T12:09:15.142898+00:00",
+  "manifestSha256": "6947e779fb740f252e35cff6f4ea90f03a87a3fe07d52d1c924bc8319ab1f2a6",
+  "manifestVersion": "ecoguard-models-2026-10-07-v2",
+  "imageSha256": "cf6f3c4befa148732c7453e0de5afab00f682427435fead2d88b07a9615cdac2",
+  "cloudValidated": false,
+  "accuracyBenchmarkPassed": false,
+  "stages": [
+    {
+      "name": "load-detector",
+      "seconds": 4.531,
+      "rssBytes": 341569536,
+      "peakRssBytes": 341573632
+    },
+    {
+      "name": "load-embedding",
+      "seconds": 1.625,
+      "rssBytes": 398655488,
+      "peakRssBytes": 459526144
+    },
+    {
+      "name": "detect-image",
+      "seconds": 17.375,
+      "rssBytes": 1287430144,
+      "peakRssBytes": 1945346048
+    },
+    {
+      "name": "embed-image",
+      "seconds": 0.172,
+      "rssBytes": 1660289024,
+      "peakRssBytes": 1945346048
+    },
+    {
+      "name": "embed-text",
+      "seconds": 0.093,
+      "rssBytes": 2002665472,
+      "peakRssBytes": 2002669568
+    },
+    {
+      "name": "embed-text",
+      "seconds": 0.032,
+      "rssBytes": 2002690048,
+      "peakRssBytes": 2002694144
+    }
+  ],
+  "rawDetections": [
+    {
+      "species": "cat",
+      "confidence": 0.8251378536224365,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.01626300811767578,
+        "y": 0.11269989808400473,
+        "width": 0.4788515567779541,
+        "height": 0.875700306892395
+      }
+    },
+    {
+      "species": "cat",
+      "confidence": 0.7794437408447266,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.5407604694366455,
+        "y": 0.049600422382354736,
+        "width": 0.45861172676086426,
+        "height": 0.7258809288342793
+      }
+    },
+    {
+      "species": "fox",
+      "confidence": 0.46617916226387024,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.018133431673049927,
+        "y": 0.1097487211227417,
+        "width": 0.4767277419567108,
+        "height": 0.8761339108149211
+      }
+    },
+    {
+      "species": "fox",
+      "confidence": 0.39897939562797546,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.5388661384582519,
+        "y": 0.04812010924021403,
+        "width": 0.4582700729370117,
+        "height": 0.728547739982605
+      }
+    },
+    {
+      "species": "feral_pig",
+      "confidence": 0.4913274347782135,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.018142372369766235,
+        "y": 0.10892558097839355,
+        "width": 0.4770550191402435,
+        "height": 0.8757027149200439
+      }
+    },
+    {
+      "species": "cane_toad",
+      "confidence": 0.5161300301551819,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.018125563859939575,
+        "y": 0.10937673250834147,
+        "width": 0.47697855830192565,
+        "height": 0.8751728534698486
+      }
+    },
+    {
+      "species": "toad",
+      "confidence": 0.49156638979911804,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.017749086022377014,
+        "y": 0.1100761890411377,
+        "width": 0.4771725982427597,
+        "height": 0.8755657990773519
+      }
+    }
+  ],
+  "detections": [
+    {
+      "species": "cat",
+      "confidence": 0.8251378536224365,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.01626300811767578,
+        "y": 0.11269989808400473,
+        "width": 0.4788515567779541,
+        "height": 0.875700306892395
+      }
+    },
+    {
+      "species": "cat",
+      "confidence": 0.7794437408447266,
+      "source": "grounding-dino",
+      "bbox": {
+        "x": 0.5407604694366455,
+        "y": 0.049600422382354736,
+        "width": 0.45861172676086426,
+        "height": 0.7258809288342793
+      }
+    }
+  ],
+  "counts": {
+    "cat": 2
+  },
+  "retrieval": [
+    {
+      "text": "a photo of two cats on a couch",
+      "cosine": 0.15584713567098799,
+      "dimensions": 768,
+      "vectorNorm": 1.0
+    },
+    {
+      "text": "a photo of a red car on a road",
+      "cosine": -0.08066691418479403,
+      "dimensions": 768,
+      "vectorNorm": 1.0
+    }
+  ],
+  "imageVectorDimensions": 768,
+  "featureVersion": "siglip2-base-256-rgb-crop-v1:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-crop-text64-v2",
+  "models": {
+    "manifestVersion": "ecoguard-models-2026-10-07-v2",
+    "loadedModels": [
+      "detector",
+      "embedding"
+    ],
+    "featureVersion": "siglip2-base-256-rgb-crop-v1:3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab:rgb-exif-crop-text64-v2",
+    "ready": true
+  },
+  "packages": {
+    "torch": "2.14.1+cpu",
+    "transformers": "4.57.6",
+    "safetensors": "0.8.0",
+    "Pillow": "12.3.0"
+  },
+  "status": "smoke-completed"
+}

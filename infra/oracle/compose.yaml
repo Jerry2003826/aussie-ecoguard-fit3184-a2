@@ -1,0 +1,61 @@
+name: ecoguard-oracle
+
+services:
+  inference:
+    image: ${ECOGUARD_IMAGE:?Set the reviewed, locally built image tag or digest}
+    pull_policy: never
+    env_file:
+      - path: ${ECOGUARD_ENV_FILE:-/etc/ecoguard/inference.env}
+        required: true
+    environment:
+      SERVICE_AUTH_MODE: oracle
+      PORT: "8080"
+      MODEL_MANIFEST_PATH: /config/model.locked.json
+      TAXONOMY_PATH: /config/taxonomy.json
+      MODEL_CACHE_DIR: /models
+      HOME: /tmp
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    user: "10001:10001"
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - type: bind
+        source: ${ECOGUARD_CONFIG_DIR:-/opt/ecoguard/config}
+        target: /config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${ECOGUARD_MODEL_DIR:-/var/lib/ecoguard/models}
+        target: /models
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp:size=1073741824,mode=1770,uid=10001,gid=10001
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    cpus: "4.0"
+    mem_limit: 6g
+    memswap_limit: 6g
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

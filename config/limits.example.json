@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1",
+  "upload": {"maxImageBytes": 20971520, "maxVideoBytes": 104857600, "maxVideoSeconds": 120, "maxBatchFiles": 10},
+  "video": {"sampleIntervalSeconds": 10, "maxFrames": 12, "countAggregation": "maximum_per_frame"},
+  "inference": {"cpu": 4, "memoryGiB": 8, "concurrency": 1, "minInstances": 0, "maxInstances": 1, "maxRequestBytes": 1048576, "maxResponseBytes": 2097152, "maxFrameBytes": 20971520, "maxImagePixels": 40000000, "maxDetectionsPerFrame": 64, "maxPetFeatures": 32, "requestDeadlineSeconds": 240, "authorizationDeadlineSeconds": 8},
+  "query": {"defaultRecentDays": 30, "topMatches": 10, "temporaryTtlSeconds": 900},
+  "notes": "Engineering starting limits, not measured capacity or a model accuracy claim."
+}
