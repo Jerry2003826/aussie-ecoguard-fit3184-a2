@@ -1,6 +1,64 @@
 # Cloud configuration snapshot — 2026-10-07, amended 2026-10-08
 
-## Latest full-test update, 8 October
+## Latest continuation, 8 October
+
+Read the [continuation acceptance report](acceptance-continuation-20261008.md)
+for the current source and quality results. The previous report and snapshot
+below remain historical evidence and are not overwritten.
+
+The final merged checks pass **184 unique automated tests**: 88 backend,
+29 frontend, 59 inference/auth, and 8 unchanged Oracle validator checks retained
+from the previous run. This continuation executed 176 tests, plus frontend build
+and AWS/GCP Terraform validation. A real local-model integration run passes
+52 functional checks using memory storage/database, local principals and an empty
+Rekognition fixture. It does not validate the live dual-cloud ingestion pipeline.
+
+An additional eight independent Oxford images provide a semantic-only baseline,
+not individual pet identities. DINO-only classified all four cats as fox and
+produced no pet features; the four dogs were classified as dog. Missing gallery
+features make all 14 query cases fail conservatively (`feature_failures`, exit 1).
+The earlier correct-text miss remains. A query using the same pet photo with
+irrelevant car text still returns a candidate; this raises a scoring question,
+but does not establish an individual-identity false positive. Thresholds and
+scoring were not changed to make these samples pass.
+
+Reviewed Terraform apply completed with 0 additions, 7 changes, 0 deletions.
+Only `source_code_hash`/`last_modified` changed on the seven existing Lambdas;
+roles, permissions and environment settings stayed unchanged. All seven functions
+are Active/Successful and match v2, LabRole and ZIP SHA-256
+`fa8448c2a0fdff09637ed01fc575c22f0aa6861634d042c283f7968b86f7fdd2`.
+The new two-user cloud run passes 29/29, sends no emails, and reports no cleanup
+errors. A separate real cleanup probe passes 29/29: repeated late source writes
+are reclaimed; FAILED retry inputs and active leases are protected; its three
+fixture records, three keys and all versions were removed. Bucket versioning
+remained Disabled. The production late-event ingest path is still absent and
+was tested only locally. Cleanup counts eligible operations, not files or bytes.
+
+Uploads still reach QUEUED, pet queries return INFERENCE_UNAVAILABLE, and chat
+returns LEX_UNAVAILABLE. Those are correct failure boundaries, not completed
+business flows. OCI reinspection still finds no RUNNING/STOPPED host. Personal
+AWS MCP identity works and Sydney/us-east-1 ListBots are empty; no formal app bot
+is configured. Google remains the fixed WIF service identity, not a compute host.
+Expired Cognito JWKS-cache handling is fixed and tested locally, but Oracle has
+not received that deployment because there is no confirmed runtime host.
+
+**Current Lab shutdown: confirmed in Edge as Terminated / 00:00.**
+Fresh course-account EC2 inventory immediately before shutdown found zero
+running, pending, stopping or stopped instances in us-east-1 and us-west-2.
+The current two-user test and cleanup probe removed their owned test data; both
+local model workers exited and their temporary files were removed. No frontend
+was started in this continuation. The temporary extension file-URL permission
+still requires the user's confirmation that it has been turned off.
+Current evidence is `lab-ended-continued.json` and `lab-ended-continued-final.png`
+in the ignored acceptance directory. The screenshot shows the red AWS status
+indicator and 00:00; accessibility state separately confirmed Terminated.
+The A$0 additional-spend limit remains in effect. Browser upload URL lifetime
+(plan 600s/code 900s) and query deadline (plan 15min/code 3600s) remain explicit
+unresolved plan deviations. Success and permanent failure immediately attempt
+query cleanup; cancellation enters asynchronous cleanup immediately, with active
+producer leases protected until a worker or periodic sweep can reclaim the input.
+
+## Previous full-test snapshot, 8 October
 
 The user authorized complete testing after the setup-only pause. The course Lab
 was resumed only for this verification. Reviewed incremental Terraform changes
@@ -45,7 +103,7 @@ user confirmed receipt; replay, private-other-owner, nonmatching tags and API
 cancellation prevented new deliveries. This uses an explicit notification fixture,
 not completed ingestion. The browser file chooser and actual S3 bytes also passed.
 
-See [current test results](environment-acceptance-20261008.md) and
+See [previous test results](environment-acceptance-20261008.md) and
 [rubric status](acceptance-matrix.md). The historical snapshot below is retained
 as prior evidence and does not override this update.
 

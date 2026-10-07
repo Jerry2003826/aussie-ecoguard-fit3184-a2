@@ -199,6 +199,10 @@ class CognitoVerifier:
                 raise ValueError("Unsupported key")
             if kid not in self.keys or time.monotonic() - self.refreshed_at >= 3600:
                 await self._refresh(kid)
+            # A concurrent refresh failure may leave this request throttled.
+            # Recheck freshness before trusting any previously cached key.
+            if time.monotonic() - self.refreshed_at >= 3600:
+                raise ServiceError("IDENTITY_PROVIDER_UNAVAILABLE", "Cognito signing keys could not be refreshed.", 503, True)
             if kid not in self.keys:
                 raise ValueError("Unknown signing key")
             public_key = jwt.PyJWK.from_dict(self.keys[kid], algorithm="RS256").key

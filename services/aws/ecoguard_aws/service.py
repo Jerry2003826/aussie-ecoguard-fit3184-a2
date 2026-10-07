@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, unquote
 
 from ecoguard_domain import DomainError, Principal, can_read, can_edit, effective_tags, matches
-from ecoguard_domain.rules import apply_tags, normalize_tags, minimum_counts, iso_time, cosine
+from ecoguard_domain.rules import apply_tags, normalize_tags, minimum_counts, iso_time, parse_time, cosine
 from .repository import Write, Conflict
 
 
@@ -199,17 +199,21 @@ class Service:
         after_key = None
         if cursor:
             state = self.operation(f"CURSOR#{cursor}", principal)
-            if state.get("expiresAt", 0) <= time.time() or state.get("fingerprint") != fingerprint:
-                raise DomainError("CURSOR_EXPIRED", "This cursor expired or belongs to another query.", 409)
-            after_key = tuple(state["afterKey"])
-        ordered = sorted(items, key=lambda m: (m.get("observedAt", ""), m["mediaId"]), reverse=True)
+            # Old cursors followed lexical timestamp order, which can disagree
+            # with chronological order. Restart rather than silently skip rows.
+            if state.get("orderVersion") != 2 or state.get("expiresAt", 0) <= time.time() or state.get("fingerprint") != fingerprint:
+                raise DomainError("CURSOR_EXPIRED", "This cursor expired or belongs to another query. Run the query again.", 409)
+            after_key = (parse_time(state["afterKey"][0]), state["afterKey"][1])
+        def order_key(media):
+            return parse_time(media["observedAt"]), media["mediaId"]
+        ordered = sorted(items, key=order_key, reverse=True)
         if after_key:
-            ordered = [m for m in ordered if (m.get("observedAt", ""), m["mediaId"]) < after_key]
+            ordered = [m for m in ordered if order_key(m) < after_key]
         chosen = ordered[:limit]
         next_cursor = None
         if limit < len(ordered):
             next_cursor = identifier()
-            self.repo.transact([Write("operations", {"operationId": f"CURSOR#{next_cursor}", "type": "CURSOR", "ownerSub": principal.sub, "expiresAt": int(time.time())+900, "fingerprint": fingerprint, "afterKey": [chosen[-1].get("observedAt", ""), chosen[-1]["mediaId"]]})])
+            self.repo.transact([Write("operations", {"operationId": f"CURSOR#{next_cursor}", "type": "CURSOR", "ownerSub": principal.sub, "expiresAt": int(time.time())+900, "orderVersion": 2, "fingerprint": fingerprint, "afterKey": [iso_time(chosen[-1]["observedAt"]), chosen[-1]["mediaId"]]})])
         return {"items": [self.media_view(m) for m in chosen], "nextCursor": next_cursor}
 
     def list_media(self, principal, params):
@@ -221,8 +225,10 @@ class Service:
         conditions = minimum_counts(body.get("minimumCounts", {}))
         after = iso_time(body["from"]) if body.get("from") else None
         before = iso_time(body["to"]) if body.get("to") else None
+        after_time = parse_time(after) if after else None
+        before_time = parse_time(before) if before else None
         file_type = body.get("fileType")
-        items = [m for m in self._candidates(principal, sorted(conditions)[0], public_only) if matches(m, conditions) and (not after or m["observedAt"] >= after) and (not before or m["observedAt"] <= before) and (not file_type or m["fileType"] == file_type)]
+        items = [m for m in self._candidates(principal, sorted(conditions)[0], public_only) if matches(m, conditions) and (not after_time or parse_time(m["observedAt"]) >= after_time) and (not before_time or parse_time(m["observedAt"]) <= before_time) and (not file_type or m["fileType"] == file_type)]
         if raw:
             return items
         return self._paginate(principal, items, body, {"minimumCounts": conditions, "from": after, "to": before, "fileType": file_type, "publicOnly": public_only})

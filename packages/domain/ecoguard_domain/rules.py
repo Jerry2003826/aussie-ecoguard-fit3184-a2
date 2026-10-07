@@ -114,16 +114,20 @@ def aggregate_counts(frames: list[dict]) -> dict[str, int]:
     return {k: v for k, v in output.items() if v > 0}
 
 
-def iso_time(value: str | None = None) -> str:
-    if value is None:
-        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+def parse_time(value: str) -> datetime:
+    """Compare instants, including legacy timestamps with variable precision/offsets."""
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
             raise ValueError()
-        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-    except (ValueError, AttributeError):
+        return parsed.astimezone(timezone.utc)
+    except (ValueError, AttributeError, TypeError, OverflowError):
         raise DomainError("INVALID_DATE", "Dates must include an ISO 8601 timezone.")
+
+
+def iso_time(value: str | None = None) -> str:
+    parsed = datetime.now(timezone.utc) if value is None else parse_time(value)
+    return parsed.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def cosine(left: list[float], right: list[float]) -> float:

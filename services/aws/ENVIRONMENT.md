@@ -34,9 +34,9 @@ reject `ECO_MODE=local`. The Python import roots for local development are
 | `ECO_INFERENCE_QUEUE_URL` | Preprocessed task references, without signed URLs or JWTs |
 | `ECO_DELETE_QUEUE_URL` | Deletion task references |
 | `ECO_NOTIFICATION_QUEUE_URL` | Media record-version events |
-| `ECO_INFERENCE_URL` | Protected Cloud Run base HTTPS URL, also Google ID-token audience |
+| `ECO_INFERENCE_URL` | Protected Oracle inference base HTTPS URL; exact Google ID-token audience verified by the Oracle application |
 | `ECO_GOOGLE_CREDENTIALS_FILE` | Packaged external-account WIF JSON path; no secret keys |
-| `ECO_GOOGLE_INVOKER_EMAIL` | GCP target service account with Cloud Run invoker |
+| `ECO_GOOGLE_INVOKER_EMAIL` | Fixed Google service-account identity impersonated through WIF and allowed by the Oracle verifier; the configuration name is retained |
 | `ECO_COGNITO_CLIENT_ID` | Browser app client ID |
 | `ECO_COGNITO_USER_POOL_ID` | User pool ID for deployment/diagnostics |
 | `ECO_WEB_URL` | Exact frontend origin/base URL for stable media links |
@@ -50,8 +50,12 @@ reject `ECO_MODE=local`. The Python import roots for local development are
 
 AWS credentials must come from the Lambda execution role. Do not set credentials in
 the image, Terraform variables, or Lambda environment. GCP WIF must allow the exact
-AWS account/role to impersonate the invoker SA using `roles/iam.workloadIdentityUser`.
+AWS account/role to impersonate the fixed service account using `roles/iam.workloadIdentityUser`.
 The runtime exchanges its AWS identity for an STS token, then `generateIdToken`.
+The current route uses Google only for IAM/WIF identity, not Cloud Run compute or
+Cloud Run invoker authorization. Oracle must verify the service token signature,
+issuer, audience, expiry and exact permitted service account. Query authorization
+also verifies the separate Cognito access token. See [Oracle deployment wiring](../../infra/oracle/README.md).
 
 ## Access and delivery requirements
 

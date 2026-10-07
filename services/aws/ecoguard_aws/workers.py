@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import unquote_plus
 
 from ecoguard_domain import DomainError, Principal, can_read, effective_tags
-from ecoguard_domain.rules import normalize_tags, iso_time, cosine
+from ecoguard_domain.rules import normalize_tags, iso_time, parse_time, cosine
 from .repository import Write, Conflict
 from .service import event
 
@@ -54,6 +54,9 @@ class Workers:
             self.s.complete_upload(Principal(initial["ownerSub"]), job_id)
         op = self._claim(job_id, {"QUEUED", "QUERY_QUEUED"}, "PREPROCESSING", SHORT_WORKER_LEASE_SECONDS)
         if op is None:
+            # A signed PUT can still finish after publication or deletion. A late
+            # event must reclaim its source bytes without reopening the media.
+            self._clean_upload_source(initial)
             return
         try:
             if self.preprocessor is None:
@@ -207,8 +210,11 @@ class Workers:
             query_features = detection.get("features", [])
             description_feature = detection.get("descriptionFeature")
             items = []
+            after = parse_time(op["from"]) if op.get("from") else None
+            before = parse_time(op["to"]) if op.get("to") else None
             for media in self.s._candidates(principal, public_only=True):
-                if (op.get("from") and media["observedAt"] < op["from"]) or (op.get("to") and media["observedAt"] > op["to"]) or not media.get("featureKey"):
+                observed_at = parse_time(media["observedAt"])
+                if (after and observed_at < after) or (before and observed_at > before) or not media.get("featureKey"):
                     continue
                 stored = json.loads(self.storage.read(media["featureKey"], 2*1024**2)).get("features", [])
                 # Both modalities must score the same candidate pet crop. Averaging
@@ -328,6 +334,28 @@ class Workers:
             dispatched += 1
         return {"dispatched": dispatched}
 
+    def _clean_upload_source(self, operation):
+        current = self.repo.get("operations", {"operationId": operation["operationId"]})
+        if not current or current.get("type") != "UPLOAD" or current.get("status") not in ("READY", "CANCELLED", "DELETED"):
+            return False
+        if current.get("leaseUntil", 0) > time.time():
+            return False
+        key = current.get("sourceKey")
+        if not key:
+            return False
+        if key != f"incoming/library/{current['operationId']}":
+            raise DomainError("INVALID_SOURCE_KEY", "The upload source does not belong to this operation.", 502)
+        media = self.repo.get("media", {"mediaId": current["mediaId"]})
+        if media and media.get("status") not in ("DELETING", "DELETED") and key in {media.get("originalKey"), media.get("thumbnailKey"), media.get("featureKey")}:
+            return False  # Preserve an original still referenced by a legacy record.
+        # HEAD can return 404 for a delete marker while older versions still
+        # contain bytes. The storage adapter's idempotent delete purges all exact
+        # key versions, including those hidden behind a marker.
+        self.storage.delete(key)
+        # Keep the operation/source pointer: another PUT using the same still-valid
+        # URL may finish later. Periodic cleanup must remain repeatable after success.
+        return True
+
     def cleanup(self):
         checked = cleaned = 0
         failures = []
@@ -341,6 +369,9 @@ class Workers:
                     if op.get("cleanupDeadline", float("inf")) <= time.time() and op["status"] not in ("FAILED", "CANCELLED", "QUERY_READY", "CLEANED"):
                         self._failure(op["operationId"], DomainError("QUERY_EXPIRED", "The query exceeded its retention period."))
                     cleaned += bool(self.clean_query(op["operationId"]))
+                elif op.get("type") == "UPLOAD" and op.get("status") in ("READY", "CANCELLED", "DELETED"):
+                    checked += 1
+                    cleaned += bool(self._clean_upload_source(op))
                 elif op.get("type") == "UPLOAD" and op.get("status") == "UPLOADING" and op.get("uploadExpiresAt", float("inf")) + 3600 <= time.time():
                     checked += 1
                     self._failure(op["operationId"], DomainError("UPLOAD_EXPIRED", "The upload was not completed. Delete the failed entry to release its reservation."))
