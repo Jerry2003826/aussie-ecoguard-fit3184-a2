@@ -6,6 +6,8 @@ import json
 import sys
 import time
 import unittest
+from threading import Event
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -42,7 +44,7 @@ class FixtureInference:
         return {"schemaVersion": "1", "manifestVersion": payload["manifestVersion"], "counts": self.counts, "tags": list(self.counts), "classification": "invasive", "features": [{"species": "fox", "vector": [1., 0.], "featureVersion": "test-v1"}]}
 
     def embed(self, payload):
-        return {"vector": [1., 0.], "featureVersion": "test-v1"}
+        return {"vector": [1., 0.], "featureVersion": "test-v1", "manifestVersion": payload["manifestVersion"]}
 
 
 class FixturePreprocessor:
@@ -161,6 +163,246 @@ class BackendTest(unittest.TestCase):
         self.assertTrue(row["originalKey"].startswith("library/invasive/"))
         self.assertEqual(len([e for e in self.repo.all("outbox") if e["kind"] == "NOTIFY"]), 1)
 
+    def _delete_during_infer_copy(self, *, copy_before_delete, sweep_before_copy=False):
+        uploaded = self.upload()
+        self.workers.ingest(uploaded["jobId"])
+        copied, release = Event(), Event()
+
+        def paused_copy(source, target):
+            # Capture source bytes like an already submitted S3 copy request.
+            data, content_type = self.storage.read(source), self.storage.head(source)["contentType"]
+            if copy_before_delete:
+                self.storage.put(target, data, content_type)
+            copied.set()
+            if not release.wait(5):
+                raise TimeoutError("The controlled deletion did not release the copy")
+            if not copy_before_delete:
+                self.storage.put(target, data, content_type)
+
+        with patch.object(self.storage, "copy", side_effect=paused_copy), ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(self.workers.infer, uploaded["jobId"])
+            try:
+                self.assertTrue(copied.wait(5))
+                row = self.service.media(uploaded["mediaId"], self.alice)
+                deletion = self.service.delete_media(self.alice, {"urls": [self.service.media_view(row)["url"]]})["items"][0]
+                prior = self.service.operation(uploaded["jobId"])
+                with patch("ecoguard_aws.workers.time.time", return_value=prior["leaseUntil"]+1):
+                    self.workers.delete(deletion["jobId"])
+                    if sweep_before_copy:
+                        self.workers.cleanup()
+                self.assertEqual(self.service.operation(deletion["jobId"])["status"], "DELETED")
+            finally:
+                release.set()
+            error = future.exception(timeout=5)
+        self.assertFalse(self.storage.objects, f"Deleted media left stored objects: {list(self.storage.objects)}")
+        self.assertIsNone(error, f"A cancelled inference should finish without resurrecting media: {error!r}")
+        self.assertIsNone(self.repo.get("media", {"mediaId": uploaded["mediaId"]}))
+        self.assertFalse(list(self.repo.all("index")))
+        self.assertFalse([e for e in self.repo.all("outbox") if e["kind"] == "NOTIFY"])
+
+    def test_delete_after_inference_copy_before_commit_removes_all_objects(self):
+        self._delete_during_infer_copy(copy_before_delete=True)
+
+    def test_copy_finishing_after_delete_cannot_leave_objects_or_resurrect(self):
+        self._delete_during_infer_copy(copy_before_delete=False)
+
+    def test_copy_finishing_after_delete_and_sweep_is_still_compensated(self):
+        self._delete_during_infer_copy(copy_before_delete=False, sweep_before_copy=True)
+
+    def test_failed_artifact_compensation_is_durable_and_retried(self):
+        uploaded = self.upload()
+        self.workers.ingest(uploaded["jobId"])
+        original_copy = self.storage.copy
+
+        def copy_then_fail(source, target):
+            original_copy(source, target)
+            raise RuntimeError("Copy response was lost")
+
+        with patch.object(self.storage, "copy", side_effect=copy_then_fail), patch.object(self.storage, "delete", side_effect=RuntimeError("Storage unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.workers.infer(uploaded["jobId"])
+        pending = [o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS"]
+        self.assertEqual(len(pending), 1)
+        self.assertTrue(all(k in self.storage.objects for k in pending[0]["objectKeys"]))
+        self.assertEqual(self.service.operation(uploaded["jobId"])["status"], "FAILED")
+        with patch("ecoguard_aws.workers.time.time", return_value=pending[0]["leaseUntil"]+1):
+            self.workers.cleanup()
+        self.assertTrue(all(k not in self.storage.objects for k in pending[0]["objectKeys"]))
+        self.assertFalse([o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS"])
+        self.service.retry(self.alice, uploaded["jobId"])
+        self.workers.ingest(uploaded["jobId"])
+        self.workers.infer(uploaded["jobId"])
+        self.assertEqual(self.service.media(uploaded["mediaId"], self.alice)["status"], "READY")
+
+    def test_hard_crash_artifacts_are_fenced_and_cleaned_after_lease(self):
+        uploaded = self.upload()
+        self.workers.ingest(uploaded["jobId"])
+        original_copy = self.storage.copy
+
+        def interrupted_copy(source, target):
+            original_copy(source, target)
+            raise SystemExit("Simulated process termination after the S3 writes")
+
+        # Skip finally's compensation to model a process that cannot run Python cleanup.
+        with patch.object(self.storage, "copy", side_effect=interrupted_copy), patch.object(self.workers, "_clean_artifacts"):
+            with self.assertRaises(SystemExit):
+                self.workers.infer(uploaded["jobId"])
+        pending = next(o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS")
+        self.workers.cleanup()
+        self.assertEqual(self.service.operation(uploaded["jobId"])["status"], "INFERRING")
+        self.assertTrue(all(k in self.storage.objects for k in pending["objectKeys"]))
+        with patch("ecoguard_aws.workers.time.time", return_value=pending["leaseUntil"]+1):
+            self.workers.cleanup()
+        self.assertEqual(self.service.operation(uploaded["jobId"])["status"], "FAILED")
+        self.assertTrue(all(k not in self.storage.objects for k in pending["objectKeys"]))
+        self.assertFalse([o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS"])
+
+    def test_lost_successful_transaction_response_does_not_remove_published_bytes(self):
+        uploaded = self.upload()
+        self.workers.ingest(uploaded["jobId"])
+        transact = self.repo.transact
+
+        def lost_response(writes):
+            transact(writes)
+            if any(w.table == "media" and w.item.get("status") == "READY" for w in writes):
+                raise RuntimeError("The transaction succeeded but its response was lost")
+
+        with patch.object(self.repo, "transact", side_effect=lost_response):
+            with self.assertRaises(RuntimeError):
+                self.workers.infer(uploaded["jobId"])
+        row = self.service.media(uploaded["mediaId"], self.alice)
+        self.assertEqual(row["status"], "READY")
+        self.assertIn(row["originalKey"], self.storage.objects)
+        self.assertIn(row["featureKey"], self.storage.objects)
+        self.assertFalse([o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS"])
+        self.workers.infer(uploaded["jobId"])
+        self.assertEqual(self.inference.calls, 1)
+        deletion = self.service.delete_media(self.alice, {"urls": [self.service.media_view(row)["url"]]})["items"][0]
+        self.workers.delete(deletion["jobId"])
+        self.assertFalse(self.storage.objects)
+
+    def _late_attempt_cannot_delete_winner(self, *, next_generation):
+        uploaded = self.upload()
+        self.workers.ingest(uploaded["jobId"])
+        entered, release = Event(), Event()
+        original_copy = self.storage.copy
+        first_target = []
+
+        def paused_first_copy(source, target):
+            if entered.is_set():
+                return original_copy(source, target)
+            data, content_type = self.storage.read(source), self.storage.head(source)["contentType"]
+            first_target.append(target)
+            entered.set()
+            if not release.wait(5):
+                raise TimeoutError("Replacement attempt did not release the old copy")
+            self.storage.put(target, data, content_type)
+
+        with patch.object(self.storage, "copy", side_effect=paused_first_copy), ThreadPoolExecutor(max_workers=1) as executor:
+            late = executor.submit(self.workers.infer, uploaded["jobId"])
+            try:
+                self.assertTrue(entered.wait(5))
+                old = self.service.operation(uploaded["jobId"])
+                if next_generation:
+                    media = self.service.media(uploaded["mediaId"], self.alice)
+                    self.repo.transact([Write("operations", dict(old, status="PREPROCESSED", generation=old["generation"]+1, leaseUntil=0), old["_rev"]), Write("media", dict(media, generation=media["generation"]+1), media["_rev"])])
+                with patch("ecoguard_aws.workers.time.time", return_value=old["leaseUntil"]+1):
+                    self.workers.infer(uploaded["jobId"])
+                winner = self.service.media(uploaded["mediaId"], self.alice)
+                self.assertEqual(winner["status"], "READY")
+                self.assertNotEqual(winner["originalKey"], first_target[0])
+            finally:
+                release.set()
+            late.result(timeout=5)
+        current = self.service.media(uploaded["mediaId"], self.alice)
+        self.assertEqual(current, winner)
+        self.assertIn(current["originalKey"], self.storage.objects)
+        self.assertIn(current["featureKey"], self.storage.objects)
+        self.assertNotIn(first_target[0], self.storage.objects)
+        self.assertFalse([o for o in self.repo.all("operations") if o["type"] == "ARTIFACTS"])
+        self.assertEqual(len([e for e in self.repo.all("outbox") if e["kind"] == "NOTIFY"]), 1)
+
+    def test_late_inference_cannot_remove_new_attempt_outputs(self):
+        self._late_attempt_cannot_delete_winner(next_generation=False)
+
+    def test_late_inference_cannot_remove_new_generation_outputs(self):
+        self._late_attempt_cannot_delete_winner(next_generation=True)
+
+    def test_delete_failure_can_be_retried_and_scans_unregistered_archive(self):
+        row = self.ready()
+        orphan = f"library/pet/{row['ownerSub']}/{row['mediaId']}/{row['generation']}/99/original"
+        newer = f"library/pet/{row['ownerSub']}/{row['mediaId']}/{row['generation']+2}/1/original"
+        legacy = f"library/uncertain/{row['ownerSub']}/{row['mediaId']}/original"
+        for key in (orphan, newer, legacy):
+            self.storage.put(key, b"unregistered fixture")
+        deletion = self.service.delete_media(self.alice, {"urls": [self.service.media_view(row)["url"]]})["items"][0]
+        with patch.object(self.storage, "delete", side_effect=RuntimeError("Temporary S3 failure")):
+            with self.assertRaises(RuntimeError):
+                self.workers.delete(deletion["jobId"])
+        self.assertEqual(self.service.operation(deletion["jobId"])["status"], "FAILED")
+        self.assertEqual(self.repo.get("media", {"mediaId": row["mediaId"]})["status"], "DELETING")
+        self.service.retry(self.alice, deletion["jobId"])
+        self.workers.delete(deletion["jobId"])
+        self.workers.delete(deletion["jobId"])
+        self.assertEqual(self.service.operation(deletion["jobId"])["status"], "DELETED")
+        self.assertEqual(set(self.storage.objects), {newer})
+
+    def test_cleanup_failure_does_not_starve_other_artifacts_or_queries(self):
+        for suffix in ("a", "b"):
+            key = f"derived/orphan/{suffix}"
+            self.storage.put(key, b"orphan")
+            self.repo.transact([Write("operations", {"operationId": f"ARTIFACTS#{suffix}", "type": "ARTIFACTS", "status": "PENDING", "mediaId": f"missing-{suffix}", "producerId": f"missing-producer-{suffix}", "producerRev": 1, "leaseUntil": 0, "objectKeys": [key]})])
+        self.storage.put("incoming/query/zz-query", b"query fixture")
+        self.repo.transact([Write("operations", {"operationId": "zz-query", "type": "QUERY", "status": "CANCELLED", "leaseUntil": 0, "sourceKey": "incoming/query/zz-query", "objectKeys": []})])
+        delete = self.storage.delete
+
+        def reject_first(key):
+            if key == "derived/orphan/a":
+                raise RuntimeError("One object remains unavailable")
+            delete(key)
+
+        with patch.object(self.storage, "delete", side_effect=reject_first):
+            result = self.workers.cleanup()
+        self.assertEqual(result["failed"], 1)
+        self.assertEqual(result["cleaned"], 2)
+        self.assertEqual(result["failures"][0]["operationId"], "ARTIFACTS#a")
+        self.assertIsNotNone(self.repo.get("operations", {"operationId": "ARTIFACTS#a"}))
+        self.assertIsNone(self.repo.get("operations", {"operationId": "ARTIFACTS#b"}))
+        self.assertTrue(self.service.operation("zz-query")["cleaned"])
+        self.assertEqual(set(self.storage.objects), {"derived/orphan/a"})
+
+    def test_worker_leases_cover_the_deployed_execution_limits(self):
+        uploaded = self.upload()
+        process = self.workers.preprocessor.process
+        captured = {}
+
+        def record_ingest(operation):
+            captured["ingest"] = operation["leaseUntil"]
+            return process(operation)
+
+        def record_infer():
+            captured["infer"] = self.service.operation(uploaded["jobId"])["leaseUntil"]
+
+        self.inference.before_return = record_infer
+        with patch("ecoguard_aws.workers.time.time", return_value=1000), patch.object(self.workers.preprocessor, "process", side_effect=record_ingest):
+            self.workers.ingest(uploaded["jobId"])
+            self.workers.infer(uploaded["jobId"])
+            row = self.service.media(uploaded["mediaId"], self.alice)
+            deletion = self.service.delete_media(self.alice, {"urls": [self.service.media_view(row)["url"]]})["items"][0]
+            delete = self.storage.delete
+
+            def record_delete(key):
+                captured["delete"] = self.service.operation(deletion["jobId"])["leaseUntil"]
+                delete(key)
+
+            with patch.object(self.storage, "delete", side_effect=record_delete):
+                self.workers.delete(deletion["jobId"])
+        # Live infra allows 120s for ingest/delete and 480s for inference. Cleanup
+        # must not assume these processes are dead before those limits plus margin.
+        self.assertGreaterEqual(captured["ingest"]-1000, 150)
+        self.assertGreaterEqual(captured["delete"]-1000, 150)
+        self.assertGreaterEqual(captured["infer"]-1000, 510)
+
     def test_private_public_and_bulk_authorization(self):
         alice = self.ready()
         bob = self.ready(self.bob, b"bob fixture")
@@ -245,6 +487,97 @@ class BackendTest(unittest.TestCase):
         with self.assertRaises(DomainError) as caught:
             self.service.create_query(self.alice, {"type": "pet", "description": "fox"})
         self.assertEqual(caught.exception.status, 403)
+
+    def test_photo_and_description_both_affect_pet_ranking(self):
+        image_match = self.ready(data=b"image-only-match", visibility="public")
+        combined_match = self.ready(data=b"combined-match", visibility="public")
+        self.storage.put(combined_match["featureKey"], json.dumps({"features": [{"species": "fox", "vector": [0.6, 0.8], "featureVersion": "test-v1"}]}).encode())
+        calls = []
+        def embed(payload):
+            calls.append(payload)
+            return {"vector": [0., 1.], "featureVersion": "test-v1", "manifestVersion": payload["manifestVersion"]}
+        self.inference.embed = embed
+        original_infer = self.inference.infer
+        image_payloads = []
+        def capture_infer(payload):
+            image_payloads.append(payload)
+            return original_infer(payload)
+        self.inference.infer = capture_infer
+        query = self.service.create_query(self.alice, {"type": "pet", "description": "distinctive markings", **self.metadata()})
+        self.storage.accept_upload(query["uploadUrl"].rsplit("/", 1)[1], b"explicit fixture content")
+        self.workers.ingest(query["jobId"])
+        self.workers.infer(query["jobId"])
+        op = self.service.operation(query["jobId"])
+        self.assertEqual(len(calls), 1)
+        sys.path.insert(0, str(ROOT / "services/inference"))
+        from app.schemas import InferRequest, EmbedRequest
+        InferRequest.model_validate(image_payloads[0])
+        EmbedRequest.model_validate(calls[0])
+        self.assertEqual(image_payloads[0]["deadlineAt"], calls[0]["deadlineAt"])
+        self.assertEqual(op["resultIds"], [combined_match["mediaId"], image_match["mediaId"]])
+        self.assertEqual(op["scores"][combined_match["mediaId"]], 0.7)
+        self.assertTrue(op["cleaned"])
+
+    def test_photo_description_incompatible_embeddings_fail_and_clean(self):
+        self.inference.embed = lambda payload: {"vector": [1., 0.], "featureVersion": "incompatible-version", "manifestVersion": payload["manifestVersion"]}
+        query = self.service.create_query(self.alice, {"type": "pet", "description": "a fox", **self.metadata()})
+        self.storage.accept_upload(query["uploadUrl"].rsplit("/", 1)[1], b"explicit fixture content")
+        self.workers.ingest(query["jobId"])
+        self.workers.infer(query["jobId"])
+        op = self.service.operation(query["jobId"])
+        self.assertEqual(op["status"], "FAILED")
+        self.assertEqual(op["error"]["code"], "FEATURE_VERSION_MISMATCH")
+        self.assertTrue(op["cleaned"])
+        self.assertNotIn(op["sourceKey"], self.storage.objects)
+
+    def test_text_query_rejects_wrong_embedding_manifest(self):
+        self.inference.embed = lambda payload: {"vector": [1., 0.], "featureVersion": "test-v1", "manifestVersion": "wrong-manifest"}
+        query = self.service.create_query(self.alice, {"type": "pet", "description": "a fox"})
+        self.workers.infer(query["jobId"])
+        op = self.service.operation(query["jobId"])
+        self.assertEqual(op["status"], "FAILED")
+        self.assertEqual(op["error"]["code"], "MODEL_VERSION_MISMATCH")
+        self.assertTrue(op["cleaned"])
+
+    def test_photo_with_whitespace_description_uses_image_only(self):
+        self.inference.embed = lambda _: self.fail("A blank description must not invoke text inference")
+        query = self.service.create_query(self.alice, {"type": "pet", "description": "  \n ", **self.metadata()})
+        self.storage.accept_upload(query["uploadUrl"].rsplit("/", 1)[1], b"explicit fixture content")
+        self.workers.ingest(query["jobId"])
+        self.workers.infer(query["jobId"])
+        self.assertEqual(self.service.operation(query["jobId"])["status"], "QUERY_READY")
+
+    def test_cancel_waits_for_active_attempt_then_cleans_all_query_bytes(self):
+        query = self.service.create_query(self.alice, {"type": "file", **self.metadata()})
+        self.storage.accept_upload(query["uploadUrl"].rsplit("/", 1)[1], b"explicit fixture content")
+        self.workers.ingest(query["jobId"])
+        op = self.service.operation(query["jobId"])
+        self.repo.transact([Write("operations", dict(op, status="INFERRING", leaseUntil=int(time.time())+470), op["_rev"])])
+        self.service.cancel_query(self.alice, query["jobId"])
+        self.workers.clean_query(query["jobId"])
+        self.assertIn(op["sourceKey"], self.storage.objects)
+        with patch("ecoguard_aws.workers.time.time", return_value=time.time()+500):
+            self.workers.clean_query(query["jobId"])
+        cleaned = self.service.operation(query["jobId"])
+        self.assertTrue(cleaned["cleaned"])
+        self.assertNotIn(op["sourceKey"], self.storage.objects)
+        self.assertFalse(list(self.storage.keys(f"derived/{query['jobId']}/")))
+        ttl = cleaned["expiresAt"]
+        with patch("ecoguard_aws.workers.time.time", return_value=time.time()+5000):
+            self.workers.clean_query(query["jobId"])
+        self.assertEqual(self.service.operation(query["jobId"])["expiresAt"], ttl)
+
+    def test_no_animals_query_fails_and_removes_temporary_media(self):
+        self.inference.counts = {}
+        query = self.service.create_query(self.alice, {"type": "file", **self.metadata()})
+        self.storage.accept_upload(query["uploadUrl"].rsplit("/", 1)[1], b"explicit fixture content")
+        self.workers.ingest(query["jobId"])
+        self.workers.infer(query["jobId"])
+        op = self.service.operation(query["jobId"])
+        self.assertEqual(op["error"]["code"], "NO_ANIMALS")
+        self.assertEqual(op["status"], "FAILED")
+        self.assertTrue(op["cleaned"])
+        self.assertFalse(self.storage.objects)
 
     def test_notification_routing_and_replay(self):
         self.service.subscribe(self.alice, {"tags": ["fox", "dog"]})

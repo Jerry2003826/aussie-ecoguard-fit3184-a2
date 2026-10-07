@@ -142,7 +142,15 @@ class Service:
                     view = self.media_view(media)
                     if str(media_id) in op.get("scores", {}):
                         view["matchScore"] = op["scores"][media_id]
-                        view["matchReason"] = "Visual similarity; possible sighting, not confirmed identity."
+                        # Frame references are cleared after query cleanup, so use
+                        # retained input metadata to explain the scoring modality.
+                        if op.get("description") and op.get("fileType"):
+                            basis = "Image and description similarity, weighted equally for the same detected pet."
+                        elif op.get("description"):
+                            basis = "Description similarity to a detected pet."
+                        else:
+                            basis = "Image similarity to a detected pet."
+                        view["matchReason"] = basis + " Possible sighting, not confirmed identity."
                     result["items"].append(view)
         return result
 
@@ -325,6 +333,7 @@ class Service:
         description = body.get("description", "")
         if not isinstance(description, str) or len(description) > 1000:
             raise DomainError("INVALID_DESCRIPTION", "Descriptions must be at most 1000 characters.")
+        description = description.strip()
         has_file = bool(body.get("filename"))
         if not has_file and (kind == "file" or not description.strip()):
             raise DomainError("MISSING_INPUT", "Provide a query file or a pet description.")

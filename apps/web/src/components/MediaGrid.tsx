@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Image, Film, LockKeyhole, Globe2, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
 import type { Access, Media } from '../api/types';
-import { label, mediaName, readableDate } from '../api/media';
+import { label, matchDetails, mediaName, readableDate } from '../api/media';
 import { StatusBadge } from './ui';
 export function MediaCard({
   media,
@@ -26,6 +26,7 @@ export function MediaCard({
   });
   const url = thumbnail.data?.thumbnailUrl || thumbnail.data?.url || media.thumbnailUrl;
   const video = media.fileType === 'video' || media.fileType.startsWith('video/');
+  const match = matchDetails(media);
   return (
     <article className={`media-card ${selected ? 'selected' : ''}`}>
       {onSelect && (
@@ -94,12 +95,12 @@ export function MediaCard({
         {media.status === 'READY' && media.tags?.length === 0 && (
           <p className="small muted">No animal tags detected</p>
         )}
-        {typeof media.score === 'number' && (
-          <p className="match-label">
-            Possible match · {(media.score * 100).toFixed(0)}% similarity
+        {match.score !== undefined && (
+          <p className="match-label" title="Ranking score, not an identity probability.">
+            Possible match · Similarity score {match.score.toFixed(3)}
           </p>
         )}
-        {media.reasons?.length ? <p className="small muted">{media.reasons.join(' · ')}</p> : null}
+        {match.reasons.length ? <p className="small muted">{match.reasons.join(' · ')}</p> : null}
         {(thumbnail.isError || imageFailed) && (
           <button
             className="text-button small"

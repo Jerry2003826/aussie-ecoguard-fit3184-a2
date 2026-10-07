@@ -15,6 +15,13 @@ export function resultsOf(job: Job): Media[] {
     ? job.results
     : job.results?.items || job.items || job.result?.items || [];
 }
+export function matchDetails(media: Media) {
+  const score = [media.matchScore, media.score].find(
+    (value): value is number => typeof value === 'number' && Number.isFinite(value),
+  );
+  const reason = media.matchReason?.trim();
+  return { score, reasons: reason ? [reason] : media.reasons || [] };
+}
 export function asList(data: MediaList | Media[]): MediaList {
   return Array.isArray(data)
     ? { items: data }

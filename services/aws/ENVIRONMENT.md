@@ -117,11 +117,16 @@ permission scoped to that exact bot alias and account. It returns `ECO_LEX_BOT_I
 `ECO_LEX_ALIAS_ID` and `ECO_LEX_LOCALE` for the infrastructure owner to configure;
 it does not overwrite any Lambda environment.
 
-Intent names are `SearchAnimals`, `FindPet`, `HelpIntent`, `FallbackIntent`; slots
+Intent names are `SearchAnimals`, `FindPet`, `EcoGuardHelp`, `FallbackIntent`; slots
 are exactly `species` (required), `count`, `color`, `date` (optional). Dialog hooks
 are disabled; fulfillment hooks use `ecoguard_aws.handlers.lex_fulfillment` and
 server-bound authenticated chat sessions. A successful deployment does not yet
 prove real `RecognizeText` behavior; test through an authenticated app chat session.
+
+All four slots have priorities 1–4 even when optional. `show me` and `search for
+animals` enter SearchAnimals without a species so Lex can elicit it. The default
+fallback omits empty utterance/priority fields, and custom slot resolution uses
+the SDK value `TopResolution`. These constraints were verified against real Lex.
 
 Official API references: [alias Lambda attachment](https://docs.aws.amazon.com/lexv2/latest/dg/lambda-attach-api.html),
 [immutable versions](https://docs.aws.amazon.com/lexv2/latest/APIReference/API_CreateBotVersion.html),

@@ -16,6 +16,9 @@ export type Media = {
   modelVersion?: string;
   classification?: string;
   error?: { message?: string };
+  matchScore?: number;
+  matchReason?: string;
+  // Retain compatibility with clients/results using the earlier UI field names.
   score?: number;
   reasons?: string[];
   ownerSub?: string;

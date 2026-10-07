@@ -45,7 +45,6 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
   async function search(event: FormEvent) {
     event.preventDefault();
     setError(undefined);
-    setJob(null);
     if (!file && (!pet || !description.trim())) {
       setError(
         new Error(
@@ -63,6 +62,10 @@ export function QueryUpload({ pet = false }: { pet?: boolean }) {
         return;
       }
     }
+    // A failed new request must not leave the previous query id looking active.
+    sessionStorage.removeItem(key);
+    setQueryId('');
+    setJob(null);
     setBusy(true);
     setProgress(null);
     try {

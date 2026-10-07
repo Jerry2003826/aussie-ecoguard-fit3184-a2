@@ -2,9 +2,10 @@
 
 - This repository implements the FIT3184 assignment. Read README.md and the
   relevant deployment documentation before changing a component.
-- The current authorized scope is local cloud access and Agent Toolkit setup.
-  Further project deployment is paused until the user requests it. Do not restart
-  the student Learner Lab or run tutorial deployment examples as part of setup.
+- The user authorized full environment and functional testing on 8 October 2026.
+  Test existing resources and apply reviewed fixes needed for those tests. End the
+  student Lab after verification; do not leave unrelated servers running.
+  Future deployments still require task-specific authorization and the A$0 limit.
 - The additional out-of-pocket budget is A$0. Do not enable billable cloud
   resources, start stopped servers, or upgrade account billing plans unless the
   user explicitly changes this constraint. Existing course credit and verified

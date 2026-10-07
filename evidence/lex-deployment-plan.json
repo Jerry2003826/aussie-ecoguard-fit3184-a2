@@ -11,6 +11,8 @@
   "intents": {
     "SearchAnimals": {
       "utterances": [
+        "show me",
+        "search for animals",
         "show me {species}",
         "find {species}",
         "show me {count} {species}",
@@ -41,7 +43,7 @@
         "date (optional)"
       ]
     },
-    "HelpIntent": {
+    "EcoGuardHelp": {
       "utterances": [
         "help",
         "what can you do",

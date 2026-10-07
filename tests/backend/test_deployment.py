@@ -107,13 +107,13 @@ class LexRecordingClient:
                 return {"botLocaleStatus": "Built"}
             if name == "list_slot_types":
                 return {"slotTypeSummaries": []}
-            if name == "create_slot_type":
+            if name in ("create_slot_type", "update_slot_type"):
                 return {"slotTypeId": "SLOTTYPE01" if args["slotTypeName"] == "EcoGuardSpecies" else "SLOTTYPE02"}
             if name == "list_intents":
                 # Lex creates a fallback intent automatically for new locales.
                 return {"intentSummaries": [{"intentName": "FallbackIntent", "intentId": "FALLBACK01"}]}
             if name == "create_intent":
-                return {"intentId": {"SearchAnimals": "SEARCH0001", "FindPet": "FINDPET001", "HelpIntent": "HELP000001"}[args["intentName"]]}
+                return {"intentId": {"SearchAnimals": "SEARCH0001", "FindPet": "FINDPET001", "EcoGuardHelp": "HELP000001"}[args["intentName"]]}
             if name == "list_slots":
                 return {"slotSummaries": []}
             if name == "create_slot":
@@ -157,10 +157,44 @@ class LexDeploymentTests(unittest.TestCase):
         intents = [args for _, name, args in recording.calls if name == "update_intent"]
         self.assertEqual({i["intentName"] for i in intents}, set(lex_tool.INTENTS))
         self.assertTrue(all(i["fulfillmentCodeHook"]["enabled"] and not i["dialogCodeHook"]["enabled"] for i in intents))
+        created_intents = [args["intentName"] for _, name, args in recording.calls if name == "create_intent"]
+        self.assertIn("EcoGuardHelp", created_intents)
+        self.assertNotIn("HelpIntent", created_intents)  # Reserved built-in name.
+        self.assertNotIn("FallbackIntent", created_intents)  # Reuse auto-created fallback.
+        fallback = next(i for i in intents if i.get("parentIntentSignature") == "AMAZON.FallbackIntent")
+        self.assertNotIn("sampleUtterances", fallback)
+        self.assertNotIn("slotPriorities", fallback)
+        slots = [args for _, name, args in recording.calls if name == "create_slot"]
+        for intent in (i for i in intents if i["intentName"] in ("SearchAnimals", "FindPet")):
+            intent_slots = [s for s in slots if s["intentId"] == intent["intentId"]]
+            self.assertEqual(len(intent["slotPriorities"]), len(intent_slots))
+            self.assertEqual({p["priority"] for p in intent["slotPriorities"]}, set(range(1, len(intent_slots)+1)))
+            self.assertEqual({p["slotId"] for p in intent["slotPriorities"]}, {"SPECIES001", "COUNT00001", "COLOR00001", "DATE000001"})
+            self.assertEqual({s["slotName"] for s in intent_slots if s["valueElicitationSetting"]["slotConstraint"] == "Required"}, {"species"})
+        search = next(i for i in intents if i["intentName"] == "SearchAnimals")
+        self.assertTrue(any("{" not in u["utterance"] for u in search["sampleUtterances"]), "Search must be reachable without a species before Lex can elicit the required slot.")
 
     def test_account_region_mismatch_stops_before_aws(self):
         with self.assertRaises(ValueError):
             lex_tool.plan(replace(self.cfg, region="us-west-2"))
+
+    def test_slot_resolution_matches_aws_enum_for_create_and_update(self):
+        # Botocore validate_parameters checks shape types, but not enum values.
+        # The live API rejected TOP_RESOLUTION despite the shape-only test above.
+        common = {"botId": "BOTID00001", "botVersion": "DRAFT", "localeId": "en_US"}
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                recording = LexRecordingSession(self.cfg)
+                deployer = lex_tool.Deployer(self.cfg, recording)
+                found = [{"slotTypeName": "EcoGuardSpecies", "slotTypeId": "SLOTTYPE01"}] if existing else []
+                with patch.object(deployer, "_all", return_value=iter(found)):
+                    deployer._slot_type(common, "EcoGuardSpecies", lex_tool.SPECIES)
+                operation = "UpdateSlotType" if existing else "CreateSlotType"
+                shape = deployer.lex.meta.service_model.operation_model(operation).input_shape
+                valid_values = shape.members["valueSelectionSetting"].members["resolutionStrategy"].enum
+                request = recording.calls[-1][2]
+                self.assertIn(request["valueSelectionSetting"]["resolutionStrategy"], valid_values)
+                self.assertNotIn("TOP_RESOLUTION", valid_values)
 
 
 if __name__ == "__main__":

@@ -67,7 +67,7 @@ class CloudRunClient:
 class UnconfiguredInference:
     """Development cannot silently pretend to run the production models."""
     def authorize_query(self, *args, **kwargs):
-        raise DomainError("CLOUD_NOT_CONFIGURED", "Connect the real Cognito and GCP inference environment to run query processing.", 503)
+        raise DomainError("CLOUD_NOT_CONFIGURED", "Connect the real Cognito and secondary-cloud inference environment to run query processing.", 503)
 
     def infer(self, payload):
         raise DomainError("MODEL_NOT_CONFIGURED", "No real inference model is configured in this development environment.", 503)

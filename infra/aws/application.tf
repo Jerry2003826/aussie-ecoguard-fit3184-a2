@@ -72,7 +72,7 @@ resource "aws_apigatewayv2_api" "app" {
   cors_configuration {
     allow_origins = var.frontend_origins
     allow_methods = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
-    allow_headers = ["authorization", "content-type"]
+    allow_headers = ["authorization", "content-type", "idempotency-key"]
     max_age       = 300
   }
 }

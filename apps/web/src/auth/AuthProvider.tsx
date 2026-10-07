@@ -46,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setExpired(false);
     } catch {
+      // An invalid or deleted account must not leave a cached SDK session blocking sign-in.
+      await signOut().catch(() => undefined);
       setUser(null);
     } finally {
       setLoading(false);

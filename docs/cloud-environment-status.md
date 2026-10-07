@@ -1,5 +1,56 @@
 # Cloud configuration snapshot — 2026-10-07, amended 2026-10-08
 
+## Latest full-test update, 8 October
+
+The user authorized complete testing after the setup-only pause. The course Lab
+was resumed only for this verification. Reviewed incremental Terraform changes
+deployed OPTIONS, the frontend Idempotency-Key CORS header, and the seven current
+v2 Lambda packages. Real Cognito/two-user API boundaries, signed S3 bytes/checksum,
+deletion Lambda and Rekognition passed. All seven final code hashes match the ZIP.
+The final core-fix apply changed only code hashes/modified timestamps on these
+seven existing functions. Their Active/Successful state, v2 manifest and unchanged
+LabRole were verified against ZIP SHA-256
+`c21e1e6e1ad1a680b40ecc86919d1600d037ded791a4798ee7e0abba8ef26d0b`.
+The merged source passes 137 unique automated tests and the frontend build;
+deletion races, partial-batch retries and pet-result producer/consumer fields
+were repaired. This does not close the retrieval-quality or deployment blockers.
+After that apply, all 29 two-user checks passed again. The existing cleanup
+Lambda also passed 19 focused recovery checks with isolated, expired ARTIFACTS
+records and a real S3 object; ledger/object deletion and producer fencing were
+verified, and all test data was removed. No READY ingestion result was fabricated.
+The course Lab was then ended in Edge and verified as AWS Status: Terminated,
+Lab terminated and 00:00. The owned frontend process stopped (no port 5173
+listener), and the signed-out test app tab closed. Temporary test users, objects,
+records, SNS topic/subscription and password file were removed. The user still
+needs to confirm restoration of the temporary extension file URL permission.
+
+A disposable real LabRole Lambda successfully exchanged Google WIF credentials,
+minted and verified the intended service ID token, and rejected a wrong audience.
+The actual voclabs role was rejected by the provider's attribute condition. The
+probe, ZIP and its log group were removed. This establishes the identity chain,
+but no actual Oracle HTTPS receiving service exists yet.
+
+OCI IAM confirms the configured principal is the student's jlii0474 account. All
+configured profiles point to that same tenancy; Melbourne is its sole subscribed
+region. Cross-checked inventory has no RUNNING/STOPPED VM, one TERMINATED OKE node,
+and a zero-size node pool. Historical SSH timed out; the old LB has no backend and
+no HTTPS endpoint. No Oracle resource was created or started.
+
+The live upload still stops at QUEUED because the ECR worker image, ingest Lambda,
+and inference endpoint are absent; application pet query and Lex return accurate
+503 errors. Correct text retrieval still fails the current similarity threshold.
+The user authorized the QQ test mailbox; actual Cognito and SNS confirmation
+succeeded. The real notify Lambda published one authorized notification and the
+user confirmed receipt; replay, private-other-owner, nonmatching tags and API
+cancellation prevented new deliveries. This uses an explicit notification fixture,
+not completed ingestion. The browser file chooser and actual S3 bytes also passed.
+
+See [current test results](environment-acceptance-20261008.md) and
+[rubric status](acceptance-matrix.md). The historical snapshot below is retained
+as prior evidence and does not override this update.
+
+## Historical snapshot
+
 The historical deployment details below are retained. On 8 October the student
 Lab was verified ended (Terminated / 00:00). OCI DEFAULT API configuration was
 repaired and verified; the accessible Oracle configuration had no running VM and

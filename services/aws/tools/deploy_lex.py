@@ -26,9 +26,9 @@ SPECIES = {
 }
 COLORS = {"ginger": ["orange"], "black": [], "white": [], "brown": [], "grey": ["gray"], "tabby": [], "golden": []}
 INTENTS = {
-    "SearchAnimals": ["show me {species}", "find {species}", "show me {count} {species}", "show me {species} from {date}", "show me {count} {species} from {date}", "search for {color} {species}"],
+    "SearchAnimals": ["show me", "search for animals", "show me {species}", "find {species}", "show me {count} {species}", "show me {species} from {date}", "show me {count} {species} from {date}", "search for {color} {species}"],
     "FindPet": ["find my {species}", "find my {color} {species}", "I lost my {species}", "I lost a {color} {species}", "find my {species} seen {date}", "find my {color} {species} seen {date}"],
-    "HelpIntent": ["help", "what can you do", "how do I search for animals"],
+    "EcoGuardHelp": ["help", "what can you do", "how do I search for animals"],
     "FallbackIntent": [],
 }
 
@@ -151,7 +151,7 @@ class Deployer:
 
     def _slot_type(self, common, name, values):
         found = next((t for t in self._all("list_slot_types", "slotTypeSummaries", **common, maxResults=100) if t["slotTypeName"] == name), None)
-        args = {**common, "slotTypeName": name, "slotTypeValues": [{"sampleValue": {"value": value}, **({"synonyms": [{"value": s} for s in synonyms]} if synonyms else {})} for value, synonyms in values.items()], "valueSelectionSetting": {"resolutionStrategy": "TOP_RESOLUTION"}}
+        args = {**common, "slotTypeName": name, "slotTypeValues": [{"sampleValue": {"value": value}, **({"synonyms": [{"value": s} for s in synonyms]} if synonyms else {})} for value, synonyms in values.items()], "valueSelectionSetting": {"resolutionStrategy": "TopResolution"}}
         if found:
             return self.lex.update_slot_type(**args, slotTypeId=found["slotTypeId"])["slotTypeId"]
         return self.lex.create_slot_type(**args)["slotTypeId"]
@@ -171,9 +171,11 @@ class Deployer:
                     setting["promptSpecification"] = {"maxRetries": 2, "allowInterrupt": True, "messageGroups": [{"message": {"plainTextMessage": {"value": prompt}}}]}
                 args = {**common, "intentId": intent_id, "slotName": slot_name, "slotTypeId": slot_type, "valueElicitationSetting": setting}
                 response = self.lex.update_slot(**args, slotId=slots[slot_name]) if slot_name in slots else self.lex.create_slot(**args)
-                if prompt:
-                    priorities.append({"priority": 1, "slotId": response["slotId"]})
-        self.lex.update_intent(**base, intentId=intent_id, sampleUtterances=[{"utterance": u} for u in INTENTS[name]], slotPriorities=priorities)
+                # BuildBotLocale requires every slot in this list, including Optional slots.
+                priorities.append({"priority": len(priorities)+1, "slotId": response["slotId"]})
+        # Lex rejects utterance/slot fields on its built-in fallback, even [] values.
+        custom_fields = {} if parent else {"sampleUtterances": [{"utterance": u} for u in INTENTS[name]], "slotPriorities": priorities}
+        self.lex.update_intent(**base, intentId=intent_id, **custom_fields)
 
     def _permission(self, bot_id, alias_id):
         source_arn = f"arn:{self.partition}:lex:{self.cfg.region}:{self.account}:bot-alias/{bot_id}/{alias_id}"

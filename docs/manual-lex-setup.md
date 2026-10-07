@@ -61,13 +61,19 @@ $fulfillmentArn = 'arn:aws:lambda:us-east-1:360493183467:function:ecoguard3184-d
 ```
 
 部署器创建 en_US locale、species/color 自定义槽位、SearchAnimals、FindPet、
-HelpIntent、FallbackIntent，构建 locale、发布版本与 live alias，添加只允许
+EcoGuardHelp、FallbackIntent，构建 locale、发布版本与 live alias，添加只允许
 这个 bot alias 调用 fulfillment Lambda 的权限。可测试语句：
 
+- show me（应追问物种，再回答 dogs）
 - show me two foxes
 - show me cats from yesterday
 - find my ginger cat
 - help
+
+真实 Lex API 要求 species/count/color/date 四个槽位都列入优先级，即使后三个
+是 optional；只有 species 必填。自定义名称 `HelpIntent` 是 AWS 保留名称，
+本项目使用 `EcoGuardHelp`。默认 FallbackIntent 不提交空 sampleUtterances 或
+slotPriorities，species/color 的解析策略使用 SDK 枚举 `TopResolution`。
 
 ## 4. 将 bot 接入已部署的 API
 
