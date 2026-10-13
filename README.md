@@ -1,7 +1,7 @@
 # Aussie EcoGuard — FIT3184 A2
 
 澳大利亚动物目击管理、物种与数量检索、照片／文字寻宠、邮件订阅和 Lex 助手。
-四人分工中 A 负责核心业务和 AI 检索；[四人任务与交接计划](docs/product-and-implementation-plan.md)。
+四人分工中 A 负责核心业务和 AI 检索；[10 月 13 日四人执行表](docs/product-and-implementation-plan.md#team-handoff-20261013)列出已有产物、待完成工作和验收交付。详细任务保留在同一文档。
 
 ## 最新交付与运行状态
 
